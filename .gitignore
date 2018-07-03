@@ -1,0 +1,17 @@
+target/
+project/target/
+.idea/
+.history
+.metadata
+.project
+**/target/
+**/**/target/
+**/*.iml
+logs/
+tmp/
+dist/
+.cache
+var/
+spark-warehouse
+_checkpoint
+_checkout
