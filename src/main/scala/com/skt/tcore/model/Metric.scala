@@ -27,8 +27,9 @@ case class MetricRule(name: String, v: Double, op: String) extends MetricFilter 
 }
 
 case class EventRule(ruleId: String, resource: String, name: String, v: Double, op: String) extends MetricFilter {
-  def metricFilter() = s"""(resource = '${resource}' AND metric.${name} IS NOT NULL)"""
+  def metricNameFilter() = s"""(resource = '${resource}' AND metric.${name} IS NOT NULL)"""
   def filter() = s"""(resource = '${resource}' AND metric.${name} IS NOT NULL AND metric.${name} ${op} ${v})"""
+  def keyValueFilter() = s"""(resource = '${resource}' AND key = '${name}'  AND value ${op} ${v})"""
 }
 
 case class ResourceRule(resource: String, logic: String="AND", mSeq: Seq[MetricRule] = Seq()) extends MetricFilter {

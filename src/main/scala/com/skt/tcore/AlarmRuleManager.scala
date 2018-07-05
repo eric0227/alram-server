@@ -2,7 +2,7 @@ package com.skt.tcore
 
 import com.skt.tcore.model.{EventRule, MetricRule, ResourceRule}
 
-object EventDetectManager {
+object AlarmRuleManager {
 
   var eventRuleList: Seq[EventRule] = Seq()
 
@@ -31,8 +31,8 @@ object EventDetectManager {
   }
 
   def createDummyEventRule() : Seq[EventRule] = {
-    EventDetectManager.addEventRule(EventRule("r1", "server1", "cpu", 80, ">"))
-    EventDetectManager.addEventRule(EventRule("r2", "server1", "mem", 90, ">"))
+    AlarmRuleManager.addEventRule(EventRule("r1", "server1", "cpu", 80, ">"))
+    AlarmRuleManager.addEventRule(EventRule("r2", "server1", "mem", 90, ">"))
     eventRuleList
   }
 }

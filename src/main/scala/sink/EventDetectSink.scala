@@ -1,6 +1,6 @@
 package sink
 
-import com.skt.tcore.EventDetectManager
+import com.skt.tcore.AlarmRuleManager
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.sql.execution.streaming.Sink
@@ -19,10 +19,10 @@ class EventDetectSink(options: Map[String, String]) extends Sink with Logging {
     import data.sparkSession.implicits._
 
     // test
-    if(EventDetectManager.getEventRule().isEmpty)
-      EventDetectManager.createDummyEventRule()
+    if(AlarmRuleManager.getEventRule().isEmpty)
+      AlarmRuleManager.createDummyEventRule()
 
-    val ruleList = EventDetectManager.getEventRule()
+    val ruleList = AlarmRuleManager.getEventRule()
 
     val coll = data.collect()
     println(s"addBatch(id=$batchId, dataSize=${coll.length})")
@@ -33,7 +33,7 @@ class EventDetectSink(options: Map[String, String]) extends Sink with Logging {
       ).cache()
 
       val detectResult = ruleList.map { eventRule =>
-        val metric = df.where(eventRule.metricFilter())
+        val metric = df.where(eventRule.metricNameFilter())
         val result = metric.withColumn("ruleId", lit(eventRule.ruleId))
                             .withColumn("timestamp", current_timestamp())
                             .withColumn("filter", lit(eventRule.filter() ))
