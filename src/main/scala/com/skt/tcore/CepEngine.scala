@@ -1,6 +1,6 @@
 package com.skt.tcore
 
-import com.skt.tcore.model.{MetricFilter, MetricLogic, MetricRule}
+import com.skt.tcore.model.{RuleFilter, MetricLogic, MetricRule}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 class CepEngine(spark: SparkSession) {
@@ -16,7 +16,7 @@ class CepEngine(spark: SparkSession) {
     df.createOrReplaceTempView("cep")
   }
 
-  def executeAlarmRule[T](id: String, filter: MetricFilter)(f: DataFrame => T): T = {
+  def executeAlarmRule[T](id: String, filter: RuleFilter)(f: DataFrame => T): T = {
 
     val query = s"""
                    | SELECT resource, event, value

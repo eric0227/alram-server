@@ -1,38 +1,50 @@
 package com.skt.tcore
 
-import com.skt.tcore.model.{EventRule, MetricRule, ResourceRule}
+import com.skt.tcore.model._
 
 object AlarmRuleManager {
 
-  var eventRuleList: Seq[EventRule] = Seq()
+  var ruleList = Seq[Rule]()
 
-  def addEventRule(rule: EventRule): Unit = {
-    if(eventRuleList.exists(_.ruleId == rule.ruleId)) {
+  def addEventRule(rule: Rule): Unit = {
+    if(ruleList.exists(_.ruleId == rule.ruleId)) {
       new IllegalArgumentException(s"duplicated rule id:"+rule.ruleId)
     }
-    eventRuleList = eventRuleList :+ rule
+    ruleList = ruleList :+ rule
   }
-
-//  def addEventRule(id: String)(condition: String): Unit = {
-//    eventRuleList = eventRuleList :+ EventRule(id, StringCondition(condition))
-//  }
 
   def removeEventRule(id: String): Unit = {
-    eventRuleList = eventRuleList.dropWhile(_.ruleId == id)
+    ruleList = ruleList.dropWhile(_.ruleId == id)
   }
 
-  def updateEventRule(rule: EventRule): Unit = {
-    eventRuleList = eventRuleList.dropWhile(_.ruleId == rule.ruleId)
+  def updateEventRule(rule: Rule): Unit = {
+    ruleList = ruleList.dropWhile(_.ruleId == rule.ruleId)
     addEventRule(rule)
   }
 
   def getEventRule(): Seq[EventRule] = {
-    eventRuleList
+    ruleList.filter {
+      case r: EventRule => true
+      case _ => false
+    }.map(_.asInstanceOf[EventRule])
   }
 
-  def createDummyEventRule() : Seq[EventRule] = {
-    AlarmRuleManager.addEventRule(EventRule("r1", "server1", "cpu", 80, ">"))
-    AlarmRuleManager.addEventRule(EventRule("r2", "server1", "mem", 90, ">"))
-    eventRuleList
+  def getContinuousAlarmRule(): Seq[ContinuousAlarmRule] = {
+    ruleList.filter {
+      case r: ContinuousAlarmRule => true
+      case _ => false
+    }.map(_.asInstanceOf[ContinuousAlarmRule])
   }
+
+  def createDummyRule() : Seq[Rule] = synchronized {
+    if(ruleList.isEmpty) {
+      AlarmRuleManager.addEventRule(EventRule("r1", "server1", "cpu", 80, ">"))
+      AlarmRuleManager.addEventRule(EventRule("r2", "server1", "mem", 90, ">"))
+
+      AlarmRuleManager.addEventRule(ContinuousAlarmRule("c1", "r1", 3))
+      AlarmRuleManager.addEventRule(ContinuousAlarmRule("c2", "r2", 3))
+    }
+    ruleList
+  }
+
 }

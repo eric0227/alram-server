@@ -19,8 +19,7 @@ class EventDetectSink(options: Map[String, String]) extends Sink with Logging {
     import data.sparkSession.implicits._
 
     // test
-    if(AlarmRuleManager.getEventRule().isEmpty)
-      AlarmRuleManager.createDummyEventRule()
+    AlarmRuleManager.createDummyRule()
 
     val ruleList = AlarmRuleManager.getEventRule()
 
@@ -62,7 +61,6 @@ class EventDetectSink(options: Map[String, String]) extends Sink with Logging {
   }
 
 }
-
 
 class EventDetectSinkProvider extends StreamSinkProvider with DataSourceRegister {
   def createSink(

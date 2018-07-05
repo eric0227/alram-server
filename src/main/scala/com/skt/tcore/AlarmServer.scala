@@ -2,7 +2,7 @@ package com.skt.tcore
 
 import java.util.concurrent.{Executors, TimeUnit}
 
-import com.skt.tcore.model.{MetricLogic, MetricRule, Schema}
+import com.skt.tcore.model.{Alarm, MetricLogic, MetricRule, Schema}
 import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import common.Common._
@@ -27,8 +27,9 @@ object AlarmServer extends Logging {
 
   val checkpointPath = "_checkpoint"
   val bootstrap = "192.168.203.105:9092"
-  val subscribe = "event"
-  val eventDetectTopic = "event-detect"
+  val eventTopic = "event"
+  val logTopic = "log"
+  val alarmTopic = "alarm"
 
   def main(args: Array[String]): Unit = {
     val master = Some("local[*]")
@@ -37,13 +38,19 @@ object AlarmServer extends Logging {
     implicit val spark = createSparkSession(master, config)
     AlarmMonitoring.setSparkSession(spark)
 
-    val eventStreamDF = eventKafkaDF(bootstrap, subscribe)
-    val logStreamDF = logKafkaDF(bootstrap, subscribe)
-
+    val eventStreamDF = readKafkaDF(bootstrap, eventTopic)
     val metricDF = selectMetricEventDF(eventStreamDF)
+
+    val alarmStreamDF = readKafkaDF(bootstrap, alarmTopic)
+    val alarmDF = selectAlarmDF(alarmStreamDF)
+
+    val logStreamDF = readKafkaDF(bootstrap, logTopic)
+
+
     //startMetricRollupQuery(metricDF)
     //startMetricStatueQuery(metricDF)
     startEventDetectQuery(metricDF)
+    startContinuousAlarmDetectSinkQuery(alarmDF)
 
     //AlarmMonitoring().startConsoleView()
 
@@ -58,21 +65,7 @@ object AlarmServer extends Logging {
     builder.getOrCreate()
   }
 
-  def eventKafkaDF(bootstrap: String, subscribe: String)(implicit spark: SparkSession): DataFrame = {
-    import spark.implicits._
-
-    spark.readStream
-      .format("kafka")
-      .option("kafka.bootstrap.servers", bootstrap)
-      .option("subscribe", subscribe)
-      .option("startingOffsets", "latest") // earliest, latest
-      .load()
-      .selectExpr("timestamp", "CAST(key AS STRING)", "CAST(value AS STRING)")
-      .as[(Timestamp, String, String)]
-      .toDF("timestamp", "key", "value")
-  }
-
-  def logKafkaDF(bootstrap: String, subscribe: String)(implicit spark: SparkSession): DataFrame = {
+  def readKafkaDF(bootstrap: String, subscribe: String)(implicit spark: SparkSession): DataFrame = {
     import spark.implicits._
 
     spark.readStream
@@ -95,10 +88,22 @@ object AlarmServer extends Logging {
     metric.printSchema()
     metric.createOrReplaceTempView("metric")
 
-    if(log.isDebugEnabled)
-      printConsole(metric)
-
+    if(log.isInfoEnabled) printConsole(metric)
     metric
+  }
+
+  def selectAlarmDF(df: DataFrame): DataFrame = {
+    import df.sparkSession.implicits._
+
+    val alarm = df.select($"timestamp", from_json($"value", schema = Schema.alarmSchema).as("data"))
+      .filter($"data.alarmType".isNotNull)
+      .select("timestamp", "data.alarmType","data.ruleId","data.detect","data.occurCount", "data.occurTimestamp", "data.payload")
+      .repartition($"ruleId")
+    alarm.printSchema()
+    alarm.createOrReplaceTempView("alarm")
+
+    if(log.isInfoEnabled) printConsole(alarm)
+    alarm
   }
 
   def startMetricStatueQuery(df: DataFrame): StreamingQuery = {
@@ -141,8 +146,8 @@ object AlarmServer extends Logging {
   def startEventDetectSinkQuery(df: DataFrame): StreamingQuery = {
     df.writeStream
       .option("kafka.bootstrap.servers", bootstrap)
-      .option("topic", eventDetectTopic)
-      .option("checkpointLocation", checkpointPath+"/event_detect")
+      .option("topic", alarmTopic)
+      .option("checkpointLocation", checkpointPath+"/event_detect_sink")
       .outputMode(OutputMode.Append())
       .format("sink.EventDetectSinkProvider")
       .queryName("eventDetect")
@@ -154,7 +159,7 @@ object AlarmServer extends Logging {
 
     // test
     if(AlarmRuleManager.getEventRule().isEmpty)
-      AlarmRuleManager.createDummyEventRule()
+      AlarmRuleManager.createDummyRule()
 
     val metricDf = df.select($"timestamp", $"nodegroup", $"resource", explode($"metric"))
     metricDf.printSchema()
@@ -163,21 +168,46 @@ object AlarmServer extends Logging {
     val ruleDf = ruleList.toDF()
     ruleDf.printSchema()
 
+    val keyFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.keyFilter()).substring(3)
+    println(keyFilter)
 
-    val filter = ruleList.foldLeft("")((result, r) => result + " OR " + r.keyValueFilter()).substring(3)
-    println(filter)
+    val valueFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.keyValueFilter()).substring(3)
+    println(valueFilter)
 
-    metricDf.as("metric")
-      .where(filter)
-      .join(ruleDf.as("rule"),
-        expr(
-          """
-            metric.resource = rule.resource AND  metric.key = rule.name
-          """)
+    val detectDF = metricDf.as("metric")
+      .where(keyFilter)
+      .withColumn("detect" , expr(s"CASE WHEN ${valueFilter} THEN true ELSE false END"))
+      .join (
+        ruleDf.as("rule"),
+        expr("metric.resource = rule.resource AND  metric.key = rule.name")
       )
-      .select("rule.ruleId","metric.*")
-      .writeStream
-      .format("console")
+      .withColumn("occurTimestamp", $"metric.timestamp")
+      .withColumn("alarmType", lit("simple"))
+      .withColumn("occurCount", expr(s"CASE WHEN detect THEN 1 ELSE 0 END"))
+      .withColumn("payload", to_json(struct(struct("metric.*").as("metric"), struct("rule.*").as("rule"))))
+      .select(to_json(struct("alarmType","ruleId","detect","occurCount","occurTimestamp","payload")).as("value"))
+    // case class Alarm(alarmType: String, ruleId: String, detect: Boolean, occurCount: Int, occurTime: Timestamp, payload: String)
+
+    detectDF.printSchema()
+    printConsole(detectDF)
+
+    detectDF.writeStream
+      .format("kafka")
+      .option("kafka.bootstrap.servers", bootstrap)
+      .option("topic", alarmTopic)
+      .option("checkpointLocation", checkpointPath+"/event_detect_query")
       .start()
   }
+
+  def startContinuousAlarmDetectSinkQuery(df: DataFrame): StreamingQuery = {
+    df.writeStream
+      .option("kafka.bootstrap.servers", bootstrap)
+      .option("topic", alarmTopic)
+      .option("checkpointLocation", checkpointPath+"/continuous_detect_sink")
+      .outputMode(OutputMode.Append())
+      .format("sink.ContinuousAlarmDetectSinkProvider")
+      .queryName("ContinuousDetect")
+      .start()
+  }
+
 }

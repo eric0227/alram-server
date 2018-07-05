@@ -11,7 +11,11 @@ object Schema {
 
 
   val alarmSchema = new StructType()
-      .add("name", StringType, true)
-      .add("value", StringType, true)
-      .add("operator", StringType, true)
+      .add("alarmType", StringType, true)
+      .add("ruleId", StringType, true)
+      .add("detect", BooleanType, true)
+      .add("occurCount", IntegerType, true)
+      .add("occurTimestamp", TimestampType, true)
+      .add("payload", StringType, true)
+
 }

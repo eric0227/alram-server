@@ -13,8 +13,8 @@ class CepEngineTest extends FunSuite  with SparkSessionTestWrapper with DatasetC
     val cepEngine = new CepEngine(spark)
     cepEngine.executeAlarmRule("rule1",
       MetricLogic(logic = "OR")
-        .add(MetricRule("cpu", 20, ">"))
-        .add(MetricRule("mem", 80, ">"))) { df =>
+        .add(MetricRule("r1"," cpu", 20, ">"))
+        .add(MetricRule("r2", "mem", 80, ">"))) { df =>
       df.show(numRows = 100)
     }
   }
