@@ -8,18 +8,19 @@ import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import common.Common._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.streaming.{OutputMode, StreamingQuery}
+import org.apache.spark.sql.streaming.{OutputMode, StreamingQuery, Trigger}
 
 
 object AlarmServer extends Logging {
 
   val eventExample =
   """
-    {"nodegroup":"g1", "resource":"server1", "metric":{"cpu": 10, "mem": 20, "disk": 30}}
-    {"nodegroup":"g1", "resource":"server1", "metric":{"cpu": 20, "mem": 30, "disk": 40}}
-    {"nodegroup":"g1", "resource":"server1", "metric":{"cpu": 80, "mem": 85, "disk": 80}}
-    {"nodegroup":"g1", "resource":"server1", "metric":{"cpu": 90, "mem": 95, "disk": 95}}
-    {"nodegroup":"g1", "resource":"server2", "metric":{"cpu": 15, "mem": 25, "disk": 95}}
+    {"nodegroup":"g1", "resource":"server1", "metric":"cpu", "value" : 95}
+    {"nodegroup":"g1", "resource":"server1", "metric":"mem", "value" : 85}
+    {"nodegroup":"g1", "resource":"server1", "metric":"disk", "value" : 75}
+    {"nodegroup":"g1", "resource":"server2", "metric":"cpu", "value" : 80}
+    {"nodegroup":"g1", "resource":"server2", "metric":"mem", "value" : 85}
+    {"nodegroup":"g1", "resource":"server2", "metric":"disk", "value" : 75}
 
     > kafka-console-producer.sh --broker-list localhost:9092 --topic event
 
@@ -40,19 +41,25 @@ object AlarmServer extends Logging {
 
     val eventStreamDF = readKafkaDF(bootstrap, eventTopic)
     val metricDF = selectMetricEventDF(eventStreamDF)
+    metricEventDetectDF(metricDF)
+      .writeStream.format("kafka")
+      .option("kafka.bootstrap.servers", bootstrap).option("topic", alarmTopic)
+      .option("checkpointLocation", checkpointPath+"/event_detect_query")
+      .start()
 
     val alarmStreamDF = readKafkaDF(bootstrap, alarmTopic)
     val alarmDF = selectAlarmDF(alarmStreamDF)
 
-    val logStreamDF = readKafkaDF(bootstrap, logTopic)
+    startMetricStateViewQuery(metricDF)
+    startMetricRollupViewQuery(metricDF)
+
+    //val logStreamDF = readKafkaDF(bootstrap, logTopic)
 
 
-    //startMetricRollupQuery(metricDF)
-    //startMetricStatueQuery(metricDF)
-    startEventDetectQuery(metricDF)
+    //startEventDetectSinkQuery(metricDF)
     startContinuousAlarmDetectSinkQuery(alarmDF)
 
-    //AlarmMonitoring().startConsoleView()
+    AlarmMonitoring().startConsoleView()
 
     spark.streams.awaitAnyTermination()
   }
@@ -84,11 +91,13 @@ object AlarmServer extends Logging {
 
     val metric = df.select($"timestamp", from_json($"value", schema = Schema.metricSchema).as("data"))
       .filter($"data.metric".isNotNull)
-      .select("timestamp", "data.nodegroup", "data.resource", "data.metric")
-    metric.printSchema()
+      //.withColumnRenamed("timestamp", "t")
+      .withColumn("timestamp", when($"data.timestamp".isNotNull, $"data.timestamp").otherwise($"timestamp"))
+      .select("timestamp", "data.nodegroup", "data.resource", "data.metric", "data.value")
     metric.createOrReplaceTempView("metric")
 
-    if(log.isInfoEnabled) printConsole(metric)
+    if(log.isInfoEnabled) metric.printSchema()
+    if(log.isDebugEnabled) printConsole(metric)
     metric
   }
 
@@ -102,44 +111,41 @@ object AlarmServer extends Logging {
     alarm.printSchema()
     alarm.createOrReplaceTempView("alarm")
 
-    if(log.isInfoEnabled) printConsole(alarm)
+    //if(log.isInfoEnabled)
+      printConsole(alarm)
     alarm
   }
 
-  def startMetricStatueQuery(df: DataFrame): StreamingQuery = {
+  def startMetricStateViewQuery(df: DataFrame): StreamingQuery = {
     import df.sparkSession.implicits._
-
     df
-      .groupBy($"nodegroup", $"resource")
-      .agg(last($"metric").as("metric"), last("timestamp").as("timestamp"))
+      .groupBy($"nodegroup", $"resource", $"metric")
+      .agg(last($"value").as("value"), last("timestamp").as("timestamp"))
       .writeStream
-      .option("checkpointLocation", checkpointPath+"/metric_state")
+      .option("checkpointLocation", checkpointPath+"/metric_state_view")
       .outputMode(OutputMode.Complete())
       .format("memory")
-      .queryName("metricLatest").start()
+      .trigger(Trigger.ProcessingTime(1, TimeUnit.SECONDS))
+      .queryName("metric_state_view").start()
+
   }
 
-  def startMetricRollupQuery(df: DataFrame): StreamingQuery = {
+  def startMetricRollupViewQuery(df: DataFrame): StreamingQuery = {
     import df.sparkSession.implicits._
-
     df
-      .select($"timestamp", $"nodegroup", $"resource", explode($"metric"))
+      .select($"timestamp", $"nodegroup", $"resource", $"metric", $"value")
       .withWatermark("timestamp", "1 minutes")
-      .groupBy( window($"timestamp", "1 minutes"), $"resource", $"key")
+      .groupBy( window($"timestamp", "1 minutes"), $"resource", $"metric")
       .agg(
          count($"value").as("cnt"), mean($"value").as("mean")
         ,min($"value").as("min"), max($"value").as("max")
         ,stddev($"value").as("stddev")
       )
-      //.withColumn("map", map($"key", $"value"))
-      //.writeStream
-      //.outputMode(OutputMode.Complete())
-      //.format("console").option("header", "true").option("truncate", false).start()
       .writeStream
-      .option("checkpointLocation", checkpointPath+"/metric_rollup")
+      .option("checkpointLocation", checkpointPath+"/metric_rollup_view")
       .outputMode(OutputMode.Complete())
       .format("memory")
-      .queryName("metricState")
+      .queryName("metric_rollup_view")
       .start()
   }
 
@@ -154,33 +160,31 @@ object AlarmServer extends Logging {
       .start()
   }
 
-  def startEventDetectQuery(df: DataFrame): StreamingQuery = {
+
+  def metricEventDetectDF(df: DataFrame): DataFrame = {
     import df.sparkSession.implicits._
 
     // test
-    if(AlarmRuleManager.getEventRule().isEmpty)
+    if(AlarmRuleManager.getMetricRule().isEmpty)
       AlarmRuleManager.createDummyRule()
 
-    val metricDf = df.select($"timestamp", $"nodegroup", $"resource", explode($"metric"))
-    metricDf.printSchema()
+    val metricDf = df.select($"timestamp", $"nodegroup", $"resource", $"metric", $"value" )
+    if(log.isWarnEnabled) metricDf.printSchema()
 
-    val ruleList = AlarmRuleManager.getEventRule()
+    val ruleList = AlarmRuleManager.getMetricRule()
     val ruleDf = ruleList.toDF()
-    ruleDf.printSchema()
+    if(log.isInfoEnabled) ruleDf.printSchema()
 
-    val keyFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.keyFilter()).substring(3)
-    println(keyFilter)
+    val keyFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.metricNameFilter).substring(3)
+    if(log.isInfoEnabled) println(keyFilter)
 
-    val valueFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.keyValueFilter()).substring(3)
-    println(valueFilter)
+    val valueFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.filterStr).substring(3)
+    if(log.isInfoEnabled) println(valueFilter)
 
     val detectDF = metricDf.as("metric")
       .where(keyFilter)
-      .withColumn("detect" , expr(s"CASE WHEN ${valueFilter} THEN true ELSE false END"))
-      .join (
-        ruleDf.as("rule"),
-        expr("metric.resource = rule.resource AND  metric.key = rule.name")
-      )
+      .withColumn("detect", expr(s"CASE WHEN ${valueFilter} THEN true ELSE false END"))
+      .join(ruleDf.as("rule"), expr("metric.resource = rule.resource AND  metric.metric = rule.metric"))
       .withColumn("occurTimestamp", $"metric.timestamp")
       .withColumn("alarmType", lit("simple"))
       .withColumn("occurCount", expr(s"CASE WHEN detect THEN 1 ELSE 0 END"))
@@ -188,15 +192,10 @@ object AlarmServer extends Logging {
       .select(to_json(struct("alarmType","ruleId","detect","occurCount","occurTimestamp","payload")).as("value"))
     // case class Alarm(alarmType: String, ruleId: String, detect: Boolean, occurCount: Int, occurTime: Timestamp, payload: String)
 
-    detectDF.printSchema()
-    printConsole(detectDF)
+    if(log.isInfoEnabled) detectDF.printSchema()
+    if(log.isDebugEnabled)  printConsole(detectDF)
 
-    detectDF.writeStream
-      .format("kafka")
-      .option("kafka.bootstrap.servers", bootstrap)
-      .option("topic", alarmTopic)
-      .option("checkpointLocation", checkpointPath+"/event_detect_query")
-      .start()
+    detectDF
   }
 
   def startContinuousAlarmDetectSinkQuery(df: DataFrame): StreamingQuery = {

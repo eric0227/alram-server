@@ -33,36 +33,32 @@ class AlarmMonitoring(implicit spark: SparkSession) {
 
     executor.scheduleAtFixedRate(new Runnable {
       override def run(): Unit = {
-        System.out.println("###################  metricLatest  ##################################")
-        spark.sql(s"SELECT nodegroup, resource, timestamp, metric FROM metricLatest ORDER BY nodegroup, resource").show(truncate = false)
+        System.out.println("###################  metric_state_view  ##################################")
+        spark.sql(s"SELECT nodegroup, resource, timestamp, metric, value FROM metric_state_view ORDER BY nodegroup, resource, metric").show(truncate = false)
       }
     }, 0, 20, TimeUnit.SECONDS)
 
     executor.scheduleAtFixedRate(new Runnable {
       override def run(): Unit = {
-        System.out.println("###################  metricState  ##################################")
-        spark.sql(s"SELECT * FROM metricState").printSchema()
+        System.out.println("###################  Metric(metricRollup)  ##################################")
+        spark.sql(s"SELECT * FROM metric_rollup_view").printSchema()
 
-        val metricStateSummay = spark
-          .sql("SELECT window, resource, key, cnt, mean, min, max, stddev FROM metricState")
-          .withColumn("summary", struct($"cnt", $"mean", $"min", $"max", $"stddev"))
-          .groupBy($"window", $"resource")
-          .agg(collect_list(map($"key", $"summary")).as("metric"))
-          .select($"window", $"resource", $"metric")
-          .orderBy($"window", $"resource")
+        val metricRollup = spark
+          .sql("SELECT window, resource, metric, cnt, mean, min, max, stddev FROM metric_rollup_view")
+          .orderBy("window", "resource", "metric")
 
-        println("######## metricStateSummay #############")
-        metricStateSummay.printSchema()
-        metricStateSummay.show(truncate = false)
+        println("######## metricRollup #############")
+        metricRollup.printSchema()
+        metricRollup.show(truncate = false)
       }
     }, 3, 20, TimeUnit.SECONDS)
 
-    executor.scheduleAtFixedRate(new Runnable {
-      override def run(): Unit = {
-        getMetricSummary("server1", "cpu", 5)
-          .foreach(println)
-      }
-    }, 5, 20, TimeUnit.SECONDS)
+//    executor.scheduleAtFixedRate(new Runnable {
+//      override def run(): Unit = {
+//        getMetricSummary("server1", "cpu", 5)
+//          .foreach(println)
+//      }
+//    }, 5, 20, TimeUnit.SECONDS)
   }
 
 
@@ -72,7 +68,7 @@ class AlarmMonitoring(implicit spark: SparkSession) {
     async {
       println("######## getMetricSummary #############")
       val summaryDF = spark
-        .sql("SELECT window, resource, key, cnt, mean, min, max, stddev FROM metricState")
+        .sql("SELECT window, resource, key, cnt, mean, min, max, stddev FROM metric_rollup_view")
         .withColumn("timediff", unix_timestamp(current_timestamp()) - unix_timestamp($"window.start"))
         //.filter((current_timestamp() - unix_timestamp($"window.start")) <= window * 1000)
         .where(s"resource = '${resource}' AND key = '${metric}' AND timediff <= ${window * 60}")

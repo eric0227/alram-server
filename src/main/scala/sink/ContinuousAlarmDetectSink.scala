@@ -41,12 +41,12 @@ class ContinuousAlarmDetectSink(options: Map[String, String]) extends Sink with 
 
     if (coll.length > 0) {
       val detectedList = coll.flatMap { row =>
-        val ruleId = row.getAs[String]("ruleId")
+        val targetRuleId = row.getAs[String]("ruleId")
         val detect = row.getAs[Boolean]("detect")
         val occurTimestamp = row.getAs[Timestamp]("timestamp")
 
         ruleAccumList.filter { accum =>
-          if(ruleId == accum.continueRule.targetRuleId) {
+          if(targetRuleId == accum.continueRule.targetRuleId) {
             if (detect) accum.increase() else accum.reset()
             accum.occurTimestamp = occurTimestamp
             accum.check()

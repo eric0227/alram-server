@@ -7,7 +7,10 @@ object Schema {
   val metricSchema = new StructType()
       .add("nodegroup", StringType, true)
       .add("resource", StringType, true)
-      .add("metric", MapType(StringType, DoubleType, true))
+      .add("metric", StringType, true)
+      .add("value", DoubleType, true)
+      .add("timestamp", TimestampType, true)
+      //.add("metric", MapType(StringType, DoubleType, true))
 
 
   val alarmSchema = new StructType()
