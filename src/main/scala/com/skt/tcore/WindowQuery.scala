@@ -9,7 +9,7 @@ object WindowQuery {
   def startWindowQuery(df: DataFrame, rule: WindowAlarmRule): Unit = {
     import df.sparkSession.implicits._
 
-    df.filter(rule.windowFilter.filterStr)
+    df.filter(rule.windowFilter.condition)
       .withWatermark("timestamp", rule.windowDuration)
       .groupBy(window($"timestamp", rule.windowDuration, rule.slidingDuration))
       .count().as("cnt")

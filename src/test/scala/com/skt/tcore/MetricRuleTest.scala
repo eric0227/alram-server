@@ -3,8 +3,9 @@ package com.skt.tcore
 import java.util.concurrent.{Executors, TimeUnit}
 
 import com.github.mrpowers.spark.fast.tests.DatasetComparer
+import com.skt.tcore.common.Common
 import com.skt.tcore.common.Common._
-import com.skt.tcore.model.{MetricRollupRule, MetricRule}
+import com.skt.tcore.model.{Metric, MetricRollupRule, MetricRule}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
@@ -15,8 +16,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.async.Async.async
-
-
 
 class MetricRuleTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
   import spark.implicits._
@@ -42,6 +41,21 @@ class MetricRuleTest extends FunSuite with SparkSessionTestWrapper with DatasetC
     ,"{'nodegroup':'g1', 'resource':'server1', 'metric':'disk', 'value' : 95}"
   )
 
+  val executor = Executors.newScheduledThreadPool(2)
+  def startMetricSend() {
+    println("send kafka ..")
+    executor.scheduleAtFixedRate(new Runnable {
+      override def run(): Unit = {
+        metric.foreach(d => MetricKafkaProducer.sendKafka(eventTopic, "k1", d))
+      }
+    }, 0, 1, TimeUnit.SECONDS)
+  }
+
+  def stopMetricSend(): Unit = {
+    println("kafka end")
+    executor.shutdown()
+  }
+
 
   val eventStreamDF = AlarmServer.readKafkaDF(bootstrap, eventTopic)
   eventStreamDF.printSchema()
@@ -55,7 +69,7 @@ class MetricRuleTest extends FunSuite with SparkSessionTestWrapper with DatasetC
     AlarmRuleManager.addRule(MetricRule("r1", "server1", "cpu", 90, ">"))
     AlarmRuleManager.addRule(MetricRule("r2", "server1", "mem", 50, ">"))
     AlarmRuleManager.addRule(MetricRule("r3", "server1", "disk", 95, ">"))
-    AlarmRuleManager.getMetricRule().foreach(r => println(r.filterStr))
+    AlarmRuleManager.getMetricRule().foreach(r => println(r.condition))
 
     val eventDF =  AlarmServer.metricEventDetectDF(metricDF)
     printConsole(eventDF)
@@ -65,42 +79,31 @@ class MetricRuleTest extends FunSuite with SparkSessionTestWrapper with DatasetC
     //spark.streams.awaitAnyTermination()
   }
 
-
-  test("metric(pre aggregation)") {
+  test("get metric value (pre aggregation)") {
     val metricDF = AlarmServer.selectMetricEventDF(eventStreamDF)
     metricDF.printSchema()
-    printConsole(eventStreamDF)
-
+    //printConsole(eventStreamDF)
     AlarmServer.startMetricStateViewQuery(metricDF)
-    metric.foreach(d => MetricKafkaProducer.sendKafka(eventTopic, "", d))
-    Thread.sleep(1000 * 1)
+    startMetricSend()
 
     System.out.println("###################  metric_state_view  #########################")
-    spark.sql("SELECT * FROM metric_state_view").show(truncate = false)
     Thread.sleep(1000 * 1)
     spark.sql("SELECT * FROM metric_state_view").show(truncate = false)
 
+    (1 to 200) foreach { i =>
+      Common.watchTime("metric_state_view query") {
+        println("count :: " + i)
 
-    val mr = MetricRule("r1", "server1", "cpu", 80, ">=")
-    val v = GetMetricValue.getMetricValue(mr)
-    v.foreach {
-      case Some(value) =>
-        println(value)
-        assert(value == 80)
-        assert(mr.eval(value))
-      case None =>
+        val cpuF = MetricSearchService.getCurrentMetricValue(Metric("server1", "cpu"))
+        val memF = MetricSearchService.getCurrentMetricValue(Metric("server1", "mem"))
+        val f = for {
+          cpuOpt <- cpuF
+          memOpt <- memF
+        } yield (cpuOpt, memOpt)
+        println(Await.result(f, Duration.Inf))
+      }
     }
-    Await.result(v, Duration.Inf)
-
-    val metricValueDF = GetMetricValue.getMetricValue(
-         List(
-            MetricRule("r1", "server1", "cpu", 80, ">=")
-           ,MetricRule("r1", "server1", "mem", 90, ">=")
-           ,MetricRule("r1", "server1", "disk", 99, ">=")
-         )
-    )
-    metricValueDF.show(truncate = false)
-    Thread.sleep(1000 * 3)
+    stopMetricSend()
     //spark.streams.awaitAnyTermination()
   }
 }

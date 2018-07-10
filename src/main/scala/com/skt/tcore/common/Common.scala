@@ -17,4 +17,20 @@ object Common {
       if(numRows > 0) df.show(numRows, truncate=false) else df.show(truncate=false)
     }
   }
+
+  def watchTime[T](name : String, min : Int = 0)(block : => T) : T = {
+    val start = System.nanoTime()
+    val ret = block
+    val end = System.nanoTime()
+
+    import scala.concurrent.duration._
+    import scala.language.postfixOps
+
+    val elapsed = (end - start ) nanos
+
+    if (elapsed.toMillis > min) {
+      println(s"code $name takes ${elapsed.toMillis} millis seconds.")
+    }
+    ret
+  }
 }

@@ -175,10 +175,10 @@ object AlarmServer extends Logging {
     val ruleDf = ruleList.toDF()
     if(log.isInfoEnabled) ruleDf.printSchema()
 
-    val keyFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.metricNameFilter).substring(3)
+    val keyFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.metricCondition).substring(3)
     if(log.isInfoEnabled) println(keyFilter)
 
-    val valueFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.filterStr).substring(3)
+    val valueFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.condition).substring(3)
     if(log.isInfoEnabled) println(valueFilter)
 
     val detectDF = metricDf.as("metric")

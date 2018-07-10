@@ -26,13 +26,13 @@ class EventDetectSink(options: Map[String, String]) extends Sink with Logging {
       ).cache()
 
       val detectResult = ruleList.map { eventRule =>
-        val metric = df.where(eventRule.metricNameFilter)
+        val metric = df.where(eventRule.metricCondition)
         val result = metric.withColumn("ruleId", lit(eventRule.ruleId))
           .withColumn("timestamp", current_timestamp())
-          .withColumn("filter", lit(eventRule.filterStr))
+          .withColumn("filter", lit(eventRule.condition))
           .withColumn("event", lit(eventRule.metric))
           .withColumn("value", metric("metric.value"))
-          .withColumn("detect", expr(s"CASE WHEN ${eventRule.filterStr} THEN 1 ELSE 0 END"))
+          .withColumn("detect", expr(s"CASE WHEN ${eventRule.condition} THEN 1 ELSE 0 END"))
         //result.printSchema()
         result
       }.reduce((f1, f2) => f1.union(f2))

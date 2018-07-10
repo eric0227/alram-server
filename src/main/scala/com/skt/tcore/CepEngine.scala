@@ -21,7 +21,7 @@ class CepEngine(spark: SparkSession) {
     val query = s"""
                    | SELECT resource, event, value
                    | FROM  metricEventLatest
-                   | WHERE ${filter.filterStr}
+                   | WHERE ${filter.condition}
                    |
       """.stripMargin
     println(query)
