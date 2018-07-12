@@ -55,7 +55,7 @@ case class MetricRuleResult(rule: MetricRule, value: Double)
 case class MetricStateRule(ruleId: String, resource: String, metric: String, value: Double, op: String, dc: Option[String]=None) extends Rule with RuleFilter {
   @Override
   val condition = s"""(metric_state_view.resource = '${resource}' AND metric_state_view.metric = '${metric}' AND  metric_state_view.value ${op} ${value})"""
-  val metricCondition = s"""(metric_state_view.resource = '${resource}' AND metric_state_view.metric = '${metric}' IS NOT NULL)"""
+  val metricCondition = s"""(metric_state_view.resource = '${resource}' AND metric_state_view.metric = '${metric}')"""
 }
 
 
@@ -63,8 +63,8 @@ case class MetricStateRule(ruleId: String, resource: String, metric: String, val
 // metric_rollup_view : {'dc': 'dc1', resource: 'server1', 'metric': 'cpu', 'value': {'cnt: 12, 'min': 40, 'mean': 55. 'max': 80, 'stddev': 23}, 'timestamp': 2018-07-23 11:02:00}
 case class MetricRollupRule(ruleId: String, resource: String, metric: String, summary: String, value: Double, op: String, dc: Option[String]=None) extends Rule with RuleFilter {
   @Override
-  val condition = s"""(metric_rollup_view.resource = '${resource}' AND metric_rollup_view.metric = '${metric}' AND  metric_rollup_view.${summary} ${op} ${value})"""
-  val metricCondition = s"""(metric_rollup_view.resource = '${resource}' AND metric_rollup_view.metric = '${metric}' IS NOT NULL)"""
+  val condition = s"""(metric_rollup.resource = '${resource}' AND metric_rollup.metric = '${metric}' AND  metric_rollup.${summary} ${op} ${value})"""
+  val metricCondition = s"""(metric_rollup.resource = '${resource}' AND metric_rollup.metric = '${metric}')"""
 }
 
 // in => {'dc': 'dc1', resource: 'server1', 'line': '.....ERROR..', 'timestamp': timestamp}

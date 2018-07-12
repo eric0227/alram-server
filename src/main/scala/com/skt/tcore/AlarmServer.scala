@@ -9,10 +9,9 @@ import common.Common._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.{OutputMode, StreamingQuery, Trigger}
-
+import scala.concurrent.duration._
 
 object AlarmServer extends Logging {
-
   val eventExample =
   """
     {"nodegroup":"g1", "resource":"server1", "metric":"cpu", "value" : 95}
@@ -119,31 +118,34 @@ object AlarmServer extends Logging {
   def startMetricStateViewQuery(df: DataFrame): StreamingQuery = {
     import df.sparkSession.implicits._
     df
+      .withWatermark("timestamp", "5 seconds")
       .groupBy($"nodegroup", $"resource", $"metric")
       .agg(last($"value").as("value"), last("timestamp").as("timestamp"))
+      .where(unix_timestamp(current_timestamp()) - unix_timestamp($"timestamp") <= 5 * 60) // 5분 데이터만 유지
       .writeStream
       .option("checkpointLocation", checkpointPath+"/metric_state_view")
       .outputMode(OutputMode.Complete())
+      //.trigger(Trigger.ProcessingTime(20.seconds))
       .format("memory")
-      .trigger(Trigger.ProcessingTime(1, TimeUnit.SECONDS))
       .queryName("metric_state_view").start()
-
   }
 
   def startMetricRollupViewQuery(df: DataFrame): StreamingQuery = {
     import df.sparkSession.implicits._
     df
       .select($"timestamp", $"nodegroup", $"resource", $"metric", $"value")
-      .withWatermark("timestamp", "1 minutes")
-      .groupBy( window($"timestamp", "1 minutes"), $"resource", $"metric")
+      .withWatermark("timestamp", "70 seconds")
+      .groupBy(window($"timestamp", "1 minutes"), $"resource", $"metric")
       .agg(
          count($"value").as("cnt"), mean($"value").as("mean")
         ,min($"value").as("min"), max($"value").as("max")
         ,stddev($"value").as("stddev")
       )
+      .where(unix_timestamp(current_timestamp()) - unix_timestamp($"window.start") <= 30 * 60) // 과거 30분 까지만 Summary
       .writeStream
       .option("checkpointLocation", checkpointPath+"/metric_rollup_view")
       .outputMode(OutputMode.Complete())
+      .trigger(Trigger.ProcessingTime(60.seconds))
       .format("memory")
       .queryName("metric_rollup_view")
       .start()

@@ -3,7 +3,7 @@ package com.skt.tcore
 import java.sql.Timestamp
 
 import com.skt.tcore.AlarmServer.log
-import com.skt.tcore.model.{Metric, MetricRule, MetricRuleResult}
+import com.skt.tcore.model.{Metric, MetricRollupRule, MetricRule, MetricRuleResult}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions._
@@ -63,34 +63,45 @@ object MetricSearchService extends Logging {
       .join(ruleDf.as("rule"), expr("metric.resource = rule.resource AND metric.metric = rule.metric"))
   }
 
+  def selectRollupMetric(query: String)(implicit spark: SparkSession): DataFrame = {
+    spark.sql(query)
+  }
 
-  def getMetricWindow(resource: String, metric: String, window: Int)(implicit spark: SparkSession): Future[Double] = {
+  def getRollupMetricMean(m: Metric, sliding: Int)(implicit spark: SparkSession): Future[Double] = {
     import spark.implicits._
-
     async {
-      println("*** getMetricSummary")
       val summaryDF = spark
-        .sql("SELECT window, resource, key, cnt, mean, min, max, stddev FROM metric_rollup_view")
+        .sql("SELECT window, resource, metric, cnt, mean, min, max, stddev FROM metric_rollup_view")
         .withColumn("timediff", unix_timestamp(current_timestamp()) - unix_timestamp($"window.start"))
-        //.filter((current_timestamp() - unix_timestamp($"window.start")) <= window * 1000)
-        .where(s"resource = '${resource}' AND key = '${metric}' AND timediff <= ${window * 60}")
-        .groupBy("resource", "key")
+        .where(s"resource = '${m.resource}' AND metric = '${m.metric}' AND timediff <= ${sliding * 60}")
+        .groupBy("resource")
         .agg(
           sum($"cnt").as("total_cnt"),
           AlramUdf.metricMean(collect_list(struct("mean", "cnt"))).as("mean"),
           min($"timediff"), max($"timediff")
         )
-      //.agg(collect_list(struct("stddev", "cnt"))).as("stddev")
-      //.select("resource", "key", "cnt")
-      summaryDF.printSchema()
-      summaryDF.show()
-
-      val result = summaryDF.head() match {
-        case Row(resource: String, key: String, total_cnt: Long, mean: Double, diff_min: Long, diff_max: Long) => mean
-        case _ => 0
-      }
-      result
+      summaryDF.take(1).map(_.getAs[Double]("mean")).headOption.getOrElse(0)
     }
   }
 
+  def selectRollupMetricMean(ruleList: List[MetricRollupRule], sliding: Int)(implicit spark: SparkSession): DataFrame = {
+    import spark.implicits._
+
+    val ruleDf = ruleList.toDF()
+    val keyFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.metricCondition).substring(3)
+    val valueFilter = ruleList.foldLeft("")((result, r) => result + " OR " + r.condition).substring(3)
+
+    val summaryDF = spark
+      .sql("SELECT window, resource, metric, cnt, mean, min, max, stddev FROM metric_rollup_view as metric_rollup")
+      .withColumn("timediff", unix_timestamp(current_timestamp()) - unix_timestamp($"window.start"))
+      .where(s"'(${keyFilter})' AND timediff <= ${sliding * 60}")
+      .groupBy("resource")
+      .agg(
+        sum($"cnt").as("total_cnt"),
+        AlramUdf.metricMean(collect_list(struct("mean", "cnt"))).as("mean"),
+        min($"timediff"), max($"timediff")
+      )
+      .withColumn("detect", expr(s"CASE WHEN ${valueFilter} THEN true ELSE false END"))
+    summaryDF
+  }
 }
