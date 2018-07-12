@@ -13,8 +13,7 @@ import org.scalatest.FunSuite
 import scala.concurrent.duration._
 
 
-class TimestampSortingTest extends FunSuite  with SparkSessionTestWrapper with DatasetComparer {
-  val bootstrap = "192.168.203.105:9092"
+class TimestampSortingTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
   val subscribe = "test111"
   import spark.implicits._
 
