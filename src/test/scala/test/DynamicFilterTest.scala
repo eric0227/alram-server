@@ -25,7 +25,7 @@ class DynamicFilterTest extends FunSuite with SparkSessionTestWrapper with Datas
       ruleList.map (r => if(event == r.event && r.eval(metric)) 1 else 0).sum > 0
     }
     def dynamicFilter = udf(userFilter)
-
+//
 //    streamDf
 //      .filter(dynamicFilter($"resource", $"event", $"metric") === true)
 //      .writeStream

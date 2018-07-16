@@ -46,12 +46,9 @@ trait SparkSessionTestWrapper {
     println("send kafka ..")
     executor.scheduleAtFixedRate(new Runnable {
       override def run(): Unit = {
-        (1 to 1000) foreach { _ =>
-          createRandomMetrics(serverCnt).foreach(m => MetricKafkaProducer.sendKafka(eventTopic, "k1", m))
-          Thread.sleep(sleep)
-        }
+        createRandomMetrics(serverCnt).foreach(m => MetricKafkaProducer.sendKafka(eventTopic, "k1", m))
       }
-    }, 0, 1, TimeUnit.SECONDS)
+    }, 0, sleep, TimeUnit.MICROSECONDS)
   }
 
   def stopMetricSend(): Unit = {

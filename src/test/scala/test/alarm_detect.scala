@@ -1,5 +1,8 @@
 package test
 
+import java.util.Date
+
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.{OutputMode, ProcessingTime}
 import org.apache.spark.sql.types.{DoubleType, StringType, StructField, StructType}
@@ -48,13 +51,16 @@ object alarm_detect extends App {
 //  val paramMap = parametersMap.map { case (k, v) => v}
 //  val condition = paramMap.foldLeft("")((result, entry) => result + " OR " + "( event == '" + entry._1 + "' AND metric " + entry._2._2 + " " + entry._2._1 + " )").substring(4)
   case class AlarmRule(id: String, event: String, metric: Double, op: String)
-  def dynamicRule(ruleList: List[AlarmRule]) = {
+  var alarmRuleDf: DataFrame = null
+  def createOrReplaceAlarmRule(ruleList: List[AlarmRule]) = {
     val df = ruleList.toDF
-    df.createOrReplaceTempView("rule")
-    df.show(truncate = false)
-    df
+    if (alarmRuleDf != null) alarmRuleDf.unpersist()
+    alarmRuleDf = df
+    alarmRuleDf.cache()
+    alarmRuleDf.createOrReplaceTempView("rule")
+    alarmRuleDf.show()
   }
-  dynamicRule(List(AlarmRule("1", "sys.cpu.usage", 80, ">"), AlarmRule("2", "sys.memory.usage", 90, ">"), AlarmRule("3", "sys.disk.usage", 90, ">")))
+  createOrReplaceAlarmRule(List(AlarmRule("1", "sys.cpu.usage", 80, ">"), AlarmRule("2", "sys.memory.usage", 90, ">"), AlarmRule("3", "sys.disk.usage", 90, ">")))
 
   val selectQuery = kafkaDf
     .selectExpr("CAST(key AS STRING) as key", "CAST(value AS STRING) as value")
@@ -65,6 +71,14 @@ object alarm_detect extends App {
       "CAST(data.metric AS DOUBLE) as metric",
       "data.log as log").select("nodegroup", "event", "metric", "log")
   selectQuery.createOrReplaceTempView("metric")
+  // RDD Operation
+//  selectQuery.mapPartitions { iter =>
+//    alarmRuleDf.collect()
+//    iter.filter { r =>
+//      true
+//    }
+//  }.createOrReplaceTempView("metric")
+
 
   val join = ss.sql(
     """
@@ -78,16 +92,23 @@ object alarm_detect extends App {
       | on metric.event = rule.event
     """.stripMargin)
   //.filter($"chk" === 1)
+
   join.writeStream.format("console").option("truncate", false).start()
   val finalQuery = join.select(to_json(struct($"rule.id",$"nodegroup", $"event", $"log", $"metric")).as("value"))
-  val executingQuery = finalQuery
-    .writeStream
-    .format("kafka")
-    .option("kafka.bootstrap.servers", args(0))
-    .option("topic", "event-streaming")
-    .option("checkpointLocation", "/tmp/spark-streaming")
-    .outputMode(OutputMode.Append())
-    .start()
-  dynamicRule(List(AlarmRule("1", "sys.cpu.usage", 50, ">"), AlarmRule("2", "sys.memory.usage", 50, ">"), AlarmRule("3", "sys.disk.usage", 50, ">")))
-  executingQuery.awaitTermination()
+//  val executingQuery = finalQuery
+//    .writeStream
+//    .format("kafka")
+//    .option("kafka.bootstrap.servers", args(0))
+//    .option("topic", "event-streaming")
+//    .option("checkpointLocation", "/tmp/spark-streaming")
+//    .outputMode(OutputMode.Append())
+//    .start()
+
+  (1 to 1000) foreach { i =>
+    val r = scala.util.Random
+    createOrReplaceAlarmRule(List(AlarmRule("1", "sys.cpu.usage", r.nextInt(100), ">"), AlarmRule("2", "sys.memory.usage", r.nextInt(100), ">"), AlarmRule("3", "sys.disk.usage", r.nextInt(100), ">")))
+    Thread.sleep(100)
+    println(new Date(), i)
+  }
+  ss.streams.awaitAnyTermination()
 }

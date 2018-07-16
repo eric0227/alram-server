@@ -26,7 +26,7 @@ class MetricCurrentViewTest extends FunSuite with SparkSessionTestWrapper with D
     val stateViewQuery = AlarmServer.startMetricStateViewQuery(metricDF)
     while(!stateViewQuery.isActive) Thread.sleep(100)
 
-    startMetricSend(1)
+    startMetricSend(10000, sleep=100)
 
     System.out.println("*** metric_state_view")
     spark.sql("SELECT * FROM metric_state_view").show(truncate = false)
