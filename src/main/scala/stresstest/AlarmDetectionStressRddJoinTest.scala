@@ -1,26 +1,9 @@
-package test
-
-import java.util.Date
+package stresstest
 
 import com.skt.tcore.AlarmServer
-import org.apache.spark.internal.Logging
-import org.apache.spark.sql.execution.streaming.Sink
-import org.apache.spark.sql._
-import org.apache.spark.sql.sources.{DataSourceRegister, StreamSinkProvider}
-import org.apache.spark.sql.streaming.{OutputMode, Trigger}
-import com.skt.tcore.common.Common._
-
-case class MetricRule(resource: String, metric: String, value: Double, op: String = ">") {
-  def eval(v: Double) : Boolean = op match {
-    case "=" =>  v == value
-    case ">" =>  v >  value
-    case ">=" => v >= value
-    case "<" =>  v <  value
-    case "<=" => v <= value
-    case "!=" | "<>" => v != value
-    case _ => false
-  }
-}
+import com.skt.tcore.common.Common.{checkpointPath, metricTopic, kafkaServers}
+import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object AlarmDetectionStressRddJoinTest extends App {
 
@@ -30,7 +13,7 @@ object AlarmDetectionStressRddJoinTest extends App {
   implicit val spark = builder.getOrCreate()
   import spark.implicits._
 
-  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, eventTopic)
+  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, metricTopic)
 
   eventStreamDF.printSchema()
   val streamDf = AlarmServer.selectMetricEventDF(eventStreamDF)
@@ -63,7 +46,7 @@ object AlarmDetectionStressRddJoinTest extends App {
       .mapPartitions { iter => List(iter.length).iterator }
 
   join.writeStream
-    .format("test.CountSinkProvider")
+    .format("stresstest.CountSinkProvider")
     //.format("console")
     //.option("header", "true").option("truncate", false).option("numRows", Int.MaxValue)
     .trigger(Trigger.ProcessingTime(0))
@@ -71,25 +54,4 @@ object AlarmDetectionStressRddJoinTest extends App {
     .start()
 
   spark.streams.awaitAnyTermination()
-}
-
-
-class CountSink(options: Map[String, String]) extends Sink with Logging {
-  override def addBatch(batchId: Long, data: DataFrame): Unit = {
-    println(new Date().toString + "::" + data.collect().map(_.getInt(0)).sum)
-  }
-}
-
-
-class CountSinkProvider extends StreamSinkProvider with DataSourceRegister {
-  def createSink(
-                  sqlContext: SQLContext,
-                  parameters: Map[String, String],
-                  partitionColumns: Seq[String],
-                  outputMode: OutputMode): Sink = {
-
-    new CountSink(parameters)
-  }
-
-  def shortName(): String = "countSink"
 }

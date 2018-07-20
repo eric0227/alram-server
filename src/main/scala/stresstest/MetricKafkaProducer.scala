@@ -1,11 +1,10 @@
-package test
+package stresstest
 
 import java.util.concurrent.Future
 import java.util.{Date, Properties}
 
 import com.skt.tcore.common.Common._
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
-import org.scalatest.FunSuite
 
 object MetricKafkaProducer  {
 
@@ -57,13 +56,16 @@ object MetricKafkaProducer  {
   }
 
   def main(args: Array[String]): Unit = {
+    val count = if(args.length == 1) args(0).toInt else 1000
+    println("send count :: " + count)
+
     val start = new Date()
-    println(start.toString, start.getTime)
+    println("start",start.toString, start.getTime)
     watchTime("sendRandomMetric") {
-      sendRandomMetric(sendCount = 10000000, serverCount = 100, metricList = List("cpu"))
+      sendRandomMetric(sendCount = count, serverCount = 100, metricList = List("cpu"))
     }
     val end = new Date()
-    println(end.toString, end.getTime)
+    println("start", end.toString, end.getTime)
     println(end.getTime - start.getTime)
   }
 }

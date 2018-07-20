@@ -7,6 +7,7 @@ import com.skt.tcore.AlarmServer
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{DoubleType, StringType, StructType, TimestampType}
 import com.skt.tcore.common.Common._
+import stresstest.MetricKafkaProducer
 
 trait SparkSessionTestWrapper {
   lazy val spark: SparkSession = {

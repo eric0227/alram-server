@@ -8,7 +8,7 @@ import com.skt.tcore.common.Common._
 import com.skt.tcore.model.{Metric, MetricRule}
 import org.apache.spark.sql.types._
 import org.scalatest.FunSuite
-import test.{MetricKafkaProducer, SparkSessionTestWrapper}
+import test.SparkSessionTestWrapper
 
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -17,7 +17,7 @@ import com.skt.tcore.common.Common
 
 class MetricCurrentViewTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
 
-  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, eventTopic)
+  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, metricTopic)
   eventStreamDF.printSchema()
 
   test("get metric value (pre aggregation)") {

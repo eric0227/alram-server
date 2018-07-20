@@ -1,15 +1,13 @@
-package test
-
-import java.util.Date
+package stresstest
 
 import com.skt.tcore.AlarmServer
-import com.skt.tcore.common.Common._
-import com.skt.tcore.common.RedisClient
-import org.apache.spark.sql._
-import org.apache.spark.sql.functions._
+import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.streaming.Trigger
 
-object AlarmDetectionStressRedisUDFTest extends App {
+object AlarmDetectionStressBroadcastUDFTest extends App {
 
   val master = if (args.length == 1) Some(args(0)) else None
   val builder = SparkSession.builder().appName("spark test")
@@ -17,12 +15,11 @@ object AlarmDetectionStressRedisUDFTest extends App {
   implicit val spark = builder.getOrCreate()
   import spark.implicits._
 
-  val metricRuleKey = "metric_rule"
+  var alarmRuleBc: Broadcast[List[MetricRule]] = null
   def createOrReplaceMetricRule(ruleList: List[MetricRule]) = {
-    val redis = RedisClient.getInstance().redis
-    ruleList.foreach { r =>
-      redis.hset(metricRuleKey, r.resource+":"+r.metric, r.op+":"+r.value)
-    }
+    val backup = alarmRuleBc
+    alarmRuleBc = spark.sparkContext.broadcast(ruleList)
+    if(backup != null) backup.destroy()
   }
 
   val r = scala.util.Random
@@ -39,15 +36,8 @@ object AlarmDetectionStressRedisUDFTest extends App {
   streamDf.printSchema()
 
   val userFilter = (resource: String, metric: String, value: Double) => {
-    val redis = RedisClient.getInstance().redis
-    val opValue = redis.hget(metricRuleKey, resource+":"+metric)
-
-    if(opValue == null) false
-    else {
-      val Array(op, ruleValue) = opValue.split(":")
-      val rule = MetricRule(resource, metric, ruleValue.toDouble, op)
-      rule.eval(value)
-    }
+    val ruleList = alarmRuleBc.value
+    ruleList.exists(r => resource == r.resource && metric == r.metric && r.eval(value))
   }
 
   def dynamicFilter = udf(userFilter)
@@ -55,13 +45,12 @@ object AlarmDetectionStressRedisUDFTest extends App {
     .filter(dynamicFilter($"resource", $"metric", $"value") === true)
     .mapPartitions { iter => List(iter.length).iterator }
     .writeStream
-    .format("test.CountSinkProvider")
+    .format("stresstest.CountSinkProvider")
     //.format("console")
     //.option("header", "true").option("truncate", false).option("numRows", Int.MaxValue)
     .trigger(Trigger.ProcessingTime(0))
-    .option("checkpointLocation", checkpointPath+"/redis")
+    .option("checkpointLocation", checkpointPath+"/udf")
     .start()
 
   spark.streams.awaitAnyTermination()
 }
-

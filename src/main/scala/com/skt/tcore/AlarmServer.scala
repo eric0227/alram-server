@@ -34,7 +34,7 @@ object AlarmServer extends Logging {
     implicit val spark = createSparkSession(master, config)
     AlarmMonitoring.setSparkSession(spark)
 
-    val eventStreamDF = readKafkaDF(kafkaServers, eventTopic)
+    val eventStreamDF = readKafkaDF(kafkaServers, metricTopic)
     val metricDF = selectMetricEventDF(eventStreamDF)
     metricEventDetectDF(metricDF)
       .writeStream.format("kafka")

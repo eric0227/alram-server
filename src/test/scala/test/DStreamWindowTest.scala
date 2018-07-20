@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.github.mrpowers.spark.fast.tests.DatasetComparer
+import com.skt.tcore.common.Common.metricTopic
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
@@ -16,6 +17,7 @@ import org.apache.spark.streaming.StreamingContext._
 import org.apache.spark.streaming.kafka010.KafkaUtils
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
+import stresstest.MetricKafkaProducer
 
 object DStreamWindowTest {
 
@@ -44,7 +46,7 @@ object DStreamWindowTest {
     println("send kafka ..")
     executor.scheduleAtFixedRate(new Runnable {
       override def run(): Unit = {
-        createRandomMetrics(serverCnt).foreach(m => MetricKafkaProducer.send(eventTopic, "k1", m))
+        createRandomMetrics(serverCnt).foreach(m => MetricKafkaProducer.send(metricTopic, "k1", m))
       }
     }, 0, sleep, TimeUnit.MILLISECONDS)
   }
@@ -77,7 +79,7 @@ object DStreamWindowTest {
       "enable.auto.commit" -> (false: java.lang.Boolean)
     )
 
-    val topics = Array(eventTopic)
+    val topics = Array(metricTopic)
 
     val stream = KafkaUtils.createDirectStream[String, String](
       ssc,

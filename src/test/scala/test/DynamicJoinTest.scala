@@ -22,7 +22,7 @@ class DynamicJoinTest extends FunSuite with SparkSessionTestWrapper with Dataset
   test("DynamicFilterTest") {
     import spark.implicits._
 
-    val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, eventTopic)
+    val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, metricTopic)
 
     eventStreamDF.printSchema()
     val streamDf = AlarmServer.selectMetricEventDF(eventStreamDF)
