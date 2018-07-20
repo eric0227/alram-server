@@ -2,6 +2,7 @@ package com.skt.tcore
 
 import java.util.concurrent.{Executors, TimeUnit}
 
+import com.skt.tcore.common.Common
 import com.skt.tcore.model.{Alarm, MetricLogic, MetricRule, Schema}
 import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
@@ -9,6 +10,7 @@ import common.Common._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.{OutputMode, StreamingQuery, Trigger}
+
 import scala.concurrent.duration._
 
 object AlarmServer extends Logging {
@@ -25,12 +27,6 @@ object AlarmServer extends Logging {
 
   """.stripMargin
 
-  val checkpointPath = "_checkpoint"
-  val bootstrap = "192.168.203.105:9092"
-  val eventTopic = "event"
-  val logTopic = "log"
-  val alarmTopic = "alarm"
-
   def main(args: Array[String]): Unit = {
     val master = Some("local[*]")
     val config = Map[String,String]()//("spark.sql.streaming.checkpointLocation" -> "_checkpoint/AlarmServer"))
@@ -38,15 +34,15 @@ object AlarmServer extends Logging {
     implicit val spark = createSparkSession(master, config)
     AlarmMonitoring.setSparkSession(spark)
 
-    val eventStreamDF = readKafkaDF(bootstrap, eventTopic)
+    val eventStreamDF = readKafkaDF(kafkaServers, eventTopic)
     val metricDF = selectMetricEventDF(eventStreamDF)
     metricEventDetectDF(metricDF)
       .writeStream.format("kafka")
-      .option("kafka.bootstrap.servers", bootstrap).option("topic", alarmTopic)
+      .option("kafka.bootstrap.servers", kafkaServers).option("topic", alarmTopic)
       .option("checkpointLocation", checkpointPath+"/event_detect_query")
       .start()
 
-    val alarmStreamDF = readKafkaDF(bootstrap, alarmTopic)
+    val alarmStreamDF = readKafkaDF(kafkaServers, alarmTopic)
     val alarmDF = selectAlarmDF(alarmStreamDF)
 
     startMetricStateViewQuery(metricDF)
@@ -71,14 +67,16 @@ object AlarmServer extends Logging {
     builder.getOrCreate()
   }
 
-  def readKafkaDF(bootstrap: String, subscribe: String)(implicit spark: SparkSession): DataFrame = {
+  def readKafkaDF(bootstrap: String, subscribe: String, options: Map[String, String]=Map())(implicit spark: SparkSession): DataFrame = {
     import spark.implicits._
 
-    spark.readStream
+    val reader = spark.readStream
       .format("kafka")
       .option("kafka.bootstrap.servers", bootstrap)
       .option("subscribe", subscribe)
       .option("startingOffsets", "latest") // earliest, latest
+      .options(options)
+    reader
       .load()
       .selectExpr("timestamp", "CAST(key AS STRING)", "CAST(value AS STRING)")
       .as[(Timestamp, String, String)]
@@ -153,7 +151,7 @@ object AlarmServer extends Logging {
 
   def startEventDetectSinkQuery(df: DataFrame): StreamingQuery = {
     df.writeStream
-      .option("kafka.bootstrap.servers", bootstrap)
+      .option("kafka.bootstrap.servers", kafkaServers)
       .option("topic", alarmTopic)
       .option("checkpointLocation", checkpointPath+"/event_detect_sink")
       .outputMode(OutputMode.Append())
@@ -202,7 +200,7 @@ object AlarmServer extends Logging {
 
   def startContinuousAlarmDetectSinkQuery(df: DataFrame): StreamingQuery = {
     df.writeStream
-      .option("kafka.bootstrap.servers", bootstrap)
+      .option("kafka.bootstrap.servers", kafkaServers)
       .option("topic", alarmTopic)
       .option("checkpointLocation", checkpointPath+"/continuous_detect_sink")
       .outputMode(OutputMode.Append())

@@ -12,7 +12,7 @@ import test.{SparkSessionTestWrapper}
 class MetricSimpleRuleTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
   import spark.implicits._
 
-  val eventStreamDF = AlarmServer.readKafkaDF(bootstrap, eventTopic)
+  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, eventTopic)
   eventStreamDF.printSchema()
 
   test("metric(simple type)") {

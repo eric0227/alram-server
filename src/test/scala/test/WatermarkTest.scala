@@ -8,10 +8,11 @@ import org.scalatest.FunSuite
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.{OutputMode, Trigger}
 import scala.concurrent.duration._
+import com.skt.tcore.common.Common._
 
 class WatermarkTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
 
-  val eventStreamDF = AlarmServer.readKafkaDF(bootstrap, eventTopic)
+  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, eventTopic)
   eventStreamDF.printSchema()
 
   test("watermark") {

@@ -44,7 +44,7 @@ object DStreamWindowTest {
     println("send kafka ..")
     executor.scheduleAtFixedRate(new Runnable {
       override def run(): Unit = {
-        createRandomMetrics(serverCnt).foreach(m => MetricKafkaProducer.sendKafka(eventTopic, "k1", m))
+        createRandomMetrics(serverCnt).foreach(m => MetricKafkaProducer.send(eventTopic, "k1", m))
       }
     }, 0, sleep, TimeUnit.MILLISECONDS)
   }

@@ -9,6 +9,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.sources.{DataSourceRegister, StreamSinkProvider}
 import org.apache.spark.sql.streaming.{OutputMode, Trigger}
 import org.scalatest.FunSuite
+import com.skt.tcore.common.Common._
 
 import scala.concurrent.duration._
 
@@ -22,7 +23,7 @@ class TimestampSortingTest extends FunSuite with SparkSessionTestWrapper with Da
 
     val kafkaDF = spark.readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", bootstrap)
+      .option("kafka.bootstrap.servers", kafkaServers)
       .option("subscribe", subscribe)
       .option("startingOffsets", "latest")
       .load()

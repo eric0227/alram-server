@@ -13,10 +13,11 @@ import test.{MetricKafkaProducer, SparkSessionTestWrapper}
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import com.skt.tcore.common.Common
 
 class MetricCurrentViewTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
 
-  val eventStreamDF = AlarmServer.readKafkaDF(bootstrap, eventTopic)
+  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, eventTopic)
   eventStreamDF.printSchema()
 
   test("get metric value (pre aggregation)") {

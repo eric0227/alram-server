@@ -45,11 +45,6 @@ object alarm_detect extends App {
     StructField("log", StringType, true)
   ))
 
-
-//  val parametersMap = List("1" -> ("sys.cpu.usage" ->(15, ">")), "2" -> ("sys.memory.usage" ->(15, ">")), "3" -> ("sys.disk.usage" ->(15, ">")))
-//  val alarmRule = parametersMap.toDF
-//  val paramMap = parametersMap.map { case (k, v) => v}
-//  val condition = paramMap.foldLeft("")((result, entry) => result + " OR " + "( event == '" + entry._1 + "' AND metric " + entry._2._2 + " " + entry._2._1 + " )").substring(4)
   case class AlarmRule(id: String, event: String, metric: Double, op: String)
   var alarmRuleDf: DataFrame = null
   def createOrReplaceAlarmRule(ruleList: List[AlarmRule]) = {

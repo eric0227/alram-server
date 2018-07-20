@@ -1,7 +1,7 @@
 package com.skt.tcore
 
 import com.github.mrpowers.spark.fast.tests.DatasetComparer
-import com.skt.tcore.common.Common
+import com.skt.tcore.common.Common._
 import com.skt.tcore.model.{Metric, MetricRollupRule, MetricRule}
 import org.scalatest.FunSuite
 import test.SparkSessionTestWrapper
@@ -10,9 +10,10 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
+
 class MetricRollupViewTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
 
-  val eventStreamDF = AlarmServer.readKafkaDF(bootstrap, eventTopic)
+  val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, metricTopic)
   eventStreamDF.printSchema()
 
   test("select metric_rollup_view (pre aggregation)") {
@@ -32,7 +33,7 @@ class MetricRollupViewTest extends FunSuite with SparkSessionTestWrapper with Da
       println("metric_rollup_view totalCount :: "
         + spark.sql("select count(1) as cnt from metric_rollup_view").head().getAs[Long]("cnt"))
 
-      Common.watchTime("metric_rollup_view query") {
+      watchTime("metric_rollup_view query") {
         spark.sql("select * from metric_rollup_view order by window.start desc").show(numRows = 5, truncate = false)
       }
     }
@@ -57,7 +58,7 @@ class MetricRollupViewTest extends FunSuite with SparkSessionTestWrapper with Da
       println("metric_rollup_view totalCount :: "
         + spark.sql("select count(1) as cnt from metric_rollup_view").head().getAs[Long]("cnt"))
 
-      Common.watchTime("metric_rollup_view query") {
+      watchTime("metric_rollup_view query") {
         val f = for {
           cpuOpt <- MetricSearchService.getRollupMetricMean(Metric("server1", "cpu"), 5)
           memOpt <- MetricSearchService.getRollupMetricMean(Metric("server1", "mem"), 5)
@@ -86,7 +87,7 @@ class MetricRollupViewTest extends FunSuite with SparkSessionTestWrapper with Da
       println("metric_rollup_view totalCount :: "
         + MetricSearchService.selectCurrentMetric("select count(1) as cnt from metric_rollup_view").head().getAs[Long]("cnt"))
 
-      Common.watchTime("metric_rollup_view query") {
+      watchTime("metric_rollup_view query") {
         MetricSearchService.selectRollupMetricMean(List(
           MetricRollupRule("r1", "server1", "cpu", "mean", 70, ">=" ),
           MetricRollupRule("r1", "server1", "mem", "mean", 80, ">=" ),

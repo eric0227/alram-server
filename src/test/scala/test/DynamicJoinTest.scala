@@ -13,6 +13,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.functions._
+import com.skt.tcore.common.Common._
 
 class DynamicJoinTest extends FunSuite with SparkSessionTestWrapper with DatasetComparer {
 
@@ -21,7 +22,7 @@ class DynamicJoinTest extends FunSuite with SparkSessionTestWrapper with Dataset
   test("DynamicFilterTest") {
     import spark.implicits._
 
-    val eventStreamDF = AlarmServer.readKafkaDF(bootstrap, eventTopic)
+    val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, eventTopic)
 
     eventStreamDF.printSchema()
     val streamDf = AlarmServer.selectMetricEventDF(eventStreamDF)
