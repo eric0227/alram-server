@@ -41,10 +41,11 @@ class RedisClientTest extends FunSuite {
         println("message :: " + message)
       }
     })
-    val sync = conn.async()
+    val sync = conn.sync()
     sync.subscribe("pub_test")
 
-    Thread.sleep(1000000)
+    Thread.sleep(100000)
+
   }
 
   test("pub") {
