@@ -17,6 +17,8 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-async" % "0.9.7"
 //libraryDependencies += "net.debasishg" %% "redisclient" % "3.7"
 //libraryDependencies += "com.github.etaty" %% "rediscala" % "1.8.0"
 libraryDependencies += "redis.clients" % "jedis" % "2.9.0"
+libraryDependencies += "io.lettuce" % "lettuce-core" % "5.0.4.RELEASE"
+
 
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"

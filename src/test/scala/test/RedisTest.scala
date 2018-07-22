@@ -2,7 +2,6 @@ package test
 
 
 import org.scalatest.FunSuite
-import redis.clients.jedis.{HostAndPort, JedisCluster}
 
 class RedisTest extends FunSuite {
 
@@ -58,10 +57,9 @@ class RedisTest extends FunSuite {
     //assert(Await.result(redis.exists("foo"), 5.seconds))
     //assert(Await.result(redis.get[String]("foo"), 5.seconds).getOrElse("") == "FOO")
   }
-*/
+
   test("jedis test") {
     import scala.collection.JavaConverters._
-    import scala.collection.JavaConversions._
 
     val list = redisServers.map(d => new HostAndPort(d._1, d._2))
     val set: java.util.Set[HostAndPort] =  list.toArray.toSet.asJava
@@ -72,4 +70,5 @@ class RedisTest extends FunSuite {
     c.hset("alarm_rule", "server1:cpu", ">:90")
     println(c.hget("alarm_rule", "server1:cpu"))
   }
+  */
 }
