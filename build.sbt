@@ -6,17 +6,14 @@ scalaVersion := "2.11.8"
 
 val sparkVersion = "2.3.1"
 
-libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion % "provided"
-libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
-libraryDependencies += "org.apache.spark" %% "spark-streaming" % sparkVersion % "provided"
+libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion //% "provided"
+libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion //% "provided"
+libraryDependencies += "org.apache.spark" %% "spark-streaming" % sparkVersion //% "provided"
 libraryDependencies += "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion excludeAll ExclusionRule(organization = "net.jpountz.lz4", name = "lz4")
 libraryDependencies += "org.apache.spark" %% "spark-streaming-kafka-0-10" % sparkVersion
 
 libraryDependencies += "com.typesafe" % "config" % "1.3.3"
 libraryDependencies += "org.scala-lang.modules" %% "scala-async" % "0.9.7"
-//libraryDependencies += "net.debasishg" %% "redisclient" % "3.7"
-//libraryDependencies += "com.github.etaty" %% "rediscala" % "1.8.0"
-libraryDependencies += "redis.clients" % "jedis" % "2.9.0"
 libraryDependencies += "io.lettuce" % "lettuce-core" % "5.0.4.RELEASE"
 
 

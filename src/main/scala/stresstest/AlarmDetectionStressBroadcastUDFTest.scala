@@ -1,11 +1,18 @@
 package stresstest
 
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.skt.tcore.AlarmServer
+import com.skt.tcore.common.{Common, RedisClient}
 import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
+import io.lettuce.core.pubsub.RedisPubSubAdapter
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.streaming.Trigger
+
+import scala.collection.JavaConversions._
 
 object AlarmDetectionStressBroadcastUDFTest extends App {
 
@@ -15,17 +22,39 @@ object AlarmDetectionStressBroadcastUDFTest extends App {
   implicit val spark = builder.getOrCreate()
   import spark.implicits._
 
-  var alarmRuleBc: Broadcast[List[MetricRule]] = null
+  var alarmRuleBc: Broadcast[List[MetricRule]] = _
   def createOrReplaceMetricRule(ruleList: List[MetricRule]) = {
     val backup = alarmRuleBc
     alarmRuleBc = spark.sparkContext.broadcast(ruleList)
     if(backup != null) backup.destroy()
   }
 
-  val r = scala.util.Random
-  createOrReplaceMetricRule {
-    (1 to 1000).map { i => MetricRule("server" + i, "cpu", 0, ">") }.toList
+  val redisConn = RedisClient.getInstance().client.connectPubSub()
+  redisConn.addListener(new RedisPubSubAdapter[String, String] {
+    override def message(channel: String, message: String): Unit = {
+      super.message(channel, message)
+      println("message :: " + message)
+      loadRedisRule()
+    }
+  })
+  val redisCmd = redisConn.sync()
+  redisCmd.subscribe(Common.metricRuleSyncChannel)
+
+  def loadRedisRule(): Unit = {
+    val redis = RedisClient.getInstance().redis
+    val list = redis.hgetall(Common.metricRuleKey).values().toList
+    println("load rule :: " + list.size)
+
+    val mapper = new ObjectMapper() with ScalaObjectMapper
+    mapper.registerModule(DefaultScalaModule)
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
+    val ruleList = list.map { json =>
+      mapper.readValue[MetricRule](json, classOf[MetricRule])
+    }
+    createOrReplaceMetricRule(ruleList)
   }
+  loadRedisRule()
 
   val options = scala.collection.mutable.HashMap[String, String]()
   maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))

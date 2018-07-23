@@ -75,5 +75,7 @@ object Common {
 
   // redis
   lazy val redisServers: String = Common.config.getString("redis.servers")
+  lazy val metricRuleKey: String = Common.config.getString("redis.metricRuleKey")
+  lazy val metricRuleSyncChannel: String = Common.config.getString("redis.metricRuleSyncChannel")
 
 }

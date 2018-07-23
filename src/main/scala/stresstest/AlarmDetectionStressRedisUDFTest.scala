@@ -2,7 +2,7 @@ package stresstest
 
 import com.skt.tcore.AlarmServer
 import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
-import com.skt.tcore.common.RedisClient
+import com.skt.tcore.common.{Common, RedisClient}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.streaming.Trigger
@@ -15,19 +15,6 @@ object AlarmDetectionStressRedisUDFTest extends App {
   implicit val spark = builder.getOrCreate()
   import spark.implicits._
 
-  val metricRuleKey = "metric_rule"
-  def createOrReplaceMetricRule(ruleList: List[MetricRule]) = {
-    val redis = RedisClient.getInstance().redis
-    ruleList.foreach { r =>
-      redis.hset(metricRuleKey, r.resource+":"+r.metric, r.op+":"+r.value)
-    }
-  }
-
-  val r = scala.util.Random
-  createOrReplaceMetricRule {
-    (1 to 1000).map { i => MetricRule("server" + i, "cpu", 0, ">") }.toList
-  }
-
   val options = scala.collection.mutable.HashMap[String, String]()
   maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))
 
@@ -38,7 +25,7 @@ object AlarmDetectionStressRedisUDFTest extends App {
 
   val userFilter = (resource: String, metric: String, value: Double) => {
     val redis = RedisClient.getInstance().redis
-    val opValue = redis.hget(metricRuleKey, resource+":"+metric)
+    val opValue = redis.hget(Common.metricRuleKey, resource+":"+metric)
 
     if(opValue == null) false
     else {

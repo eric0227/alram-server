@@ -1,7 +1,8 @@
 package com.skt.tcore.common
 
 import com.skt.tcore.common.Common.redisServers
-import redis.clients.jedis.{HostAndPort, JedisCluster}
+import io.lettuce.core.RedisURI
+import io.lettuce.core.cluster.RedisClusterClient
 
 object RedisClient {
 
@@ -19,9 +20,10 @@ class RedisClient {
 
   val redisServerList = redisServers.split(",").map { token =>
     val Array(ip, port) = token.split(":")
-    new HostAndPort(ip, port.toInt)
+    RedisURI.create(ip, port.toInt)
   }.toSet.asJava
   println(redisServerList)
 
-  val redis = new JedisCluster(redisServerList)
+  val client = RedisClusterClient.create(redisServerList)
+  val redis = RedisClusterClient.create(redisServerList).connect().sync()
 }
