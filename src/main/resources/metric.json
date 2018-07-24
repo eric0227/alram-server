@@ -1,0 +1,1 @@
+{"fields":{"active":13999108096,"available":188894736384,"available_percent":93.25854820870096,"buffered":707768320,"cached":3480580096,"free":185230909440,"inactive":1324851200,"slab":469602304,"total":202549514240,"used":13130256384,"used_percent":6.482492161616354,"wired":0},"name":"mem","tags":{"host":"tcore-oi-data-4"},"timestamp":1529978760}

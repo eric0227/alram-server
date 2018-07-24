@@ -7,8 +7,9 @@ import io.lettuce.core.cluster.RedisClusterClient
 object RedisClient {
 
   @volatile var instance: RedisClient = _
+
   def getInstance(): RedisClient = synchronized {
-    if(instance == null) {
+    if (instance == null) {
       instance = new RedisClient()
     }
     instance
@@ -16,6 +17,7 @@ object RedisClient {
 }
 
 class RedisClient {
+
   import scala.collection.JavaConverters._
 
   val redisServerList = redisServers.split(",").map { token =>
@@ -26,4 +28,5 @@ class RedisClient {
 
   val client = RedisClusterClient.create(redisServerList)
   val redis = RedisClusterClient.create(redisServerList).connect().sync()
+
 }

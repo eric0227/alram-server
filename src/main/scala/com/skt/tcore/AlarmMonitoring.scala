@@ -2,17 +2,16 @@ package com.skt.tcore
 
 import java.util.concurrent.{Executors, TimeUnit}
 
-import com.skt.tcore.AlarmMonitoring.spark
-import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{Row, SparkSession}
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.async.Async.async
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 object AlarmMonitoring {
   var spark: SparkSession = _
-  var instance: AlarmMonitoring  = _
+  var instance: AlarmMonitoring = _
 
   def setSparkSession(spark: SparkSession): Unit = {
     this.spark = spark
@@ -26,7 +25,6 @@ object AlarmMonitoring {
 }
 
 class AlarmMonitoring(implicit spark: SparkSession) {
-  import spark.implicits._
 
   def startConsoleView(): Unit = {
     val executor = Executors.newScheduledThreadPool(2)
@@ -53,12 +51,12 @@ class AlarmMonitoring(implicit spark: SparkSession) {
       }
     }, 3, 20, TimeUnit.SECONDS)
 
-//    executor.scheduleAtFixedRate(new Runnable {
-//      override def run(): Unit = {
-//        getMetricSummary("server1", "cpu", 5)
-//          .foreach(println)
-//      }
-//    }, 5, 20, TimeUnit.SECONDS)
+    //    executor.scheduleAtFixedRate(new Runnable {
+    //      override def run(): Unit = {
+    //        getMetricSummary("server1", "cpu", 5)
+    //          .foreach(println)
+    //      }
+    //    }, 5, 20, TimeUnit.SECONDS)
   }
 
 
@@ -84,7 +82,7 @@ class AlarmMonitoring(implicit spark: SparkSession) {
       summaryDF.show()
 
       val result = summaryDF.head() match {
-        case Row(resource: String, key: String, total_cnt: Long, mean: Double, diff_min:Long, diff_max:Long) => mean
+        case Row(resource: String, key: String, total_cnt: Long, mean: Double, diff_min: Long, diff_max: Long) => mean
         case _ => 0
       }
       result

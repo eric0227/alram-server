@@ -87,10 +87,12 @@ object AlarmServer extends Logging {
     import df.sparkSession.implicits._
 
     val metric = df.select($"timestamp", from_json($"value", schema = Schema.metricSchema).as("data"))
-      .filter($"data.metric".isNotNull)
-      //.withColumnRenamed("timestamp", "t")
+      .filter($"data.name".isNotNull)
       .withColumn("timestamp", when($"data.timestamp".isNotNull, $"data.timestamp").otherwise($"timestamp"))
-      .select("timestamp", "data.nodegroup", "data.resource", "data.metric", "data.value")
+      .withColumn("resource", $"data.tags.host")
+      .select($"timestamp", $"resource", $"data.name", explode($"data.fields").as(Seq("metric","value")))
+      .withColumn("metric", concat($"name", lit("_"), $"metric" ))
+
     metric.createOrReplaceTempView("metric")
 
     if(log.isInfoEnabled) metric.printSchema()

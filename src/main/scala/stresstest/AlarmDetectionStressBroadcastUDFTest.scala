@@ -11,6 +11,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.streaming.Trigger
+import stresstest.AlarmRuleRedisLoaderBroadcast.spark
 
 import scala.collection.JavaConversions._
 
@@ -22,42 +23,22 @@ object AlarmDetectionStressBroadcastUDFTest extends App {
   implicit val spark = builder.getOrCreate()
   import spark.implicits._
 
+  val options = scala.collection.mutable.HashMap[String, String]()
+  maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))
+
   var alarmRuleBc: Broadcast[List[MetricRule]] = _
-  def createOrReplaceMetricRule(ruleList: List[MetricRule]) = {
+  def createBroadcast(ruleList: List[MetricRule]) = {
     val backup = alarmRuleBc
     alarmRuleBc = spark.sparkContext.broadcast(ruleList)
     if(backup != null) backup.destroy()
   }
 
-  val redisConn = RedisClient.getInstance().client.connectPubSub()
-  redisConn.addListener(new RedisPubSubAdapter[String, String] {
-    override def message(channel: String, message: String): Unit = {
-      super.message(channel, message)
-      println("message :: " + message)
-      loadRedisRule()
+  AlarmRuleRedisLoader { list =>
+    println(list.size)
+    Common.watchTime("create Broadcast") {
+      createBroadcast(list.toList)
     }
-  })
-  val redisCmd = redisConn.sync()
-  redisCmd.subscribe(Common.metricRuleSyncChannel)
-
-  def loadRedisRule(): Unit = {
-    val redis = RedisClient.getInstance().redis
-    val list = redis.hgetall(Common.metricRuleKey).values().toList
-    println("load rule :: " + list.size)
-
-    val mapper = new ObjectMapper() with ScalaObjectMapper
-    mapper.registerModule(DefaultScalaModule)
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-
-    val ruleList = list.map { json =>
-      mapper.readValue[MetricRule](json, classOf[MetricRule])
-    }
-    createOrReplaceMetricRule(ruleList)
-  }
-  loadRedisRule()
-
-  val options = scala.collection.mutable.HashMap[String, String]()
-  maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))
+  }.loadRedisRule()
 
   val eventStreamDF = AlarmServer.readKafkaDF(kafkaServers, metricTopic, options.toMap)(spark)
   eventStreamDF.printSchema()

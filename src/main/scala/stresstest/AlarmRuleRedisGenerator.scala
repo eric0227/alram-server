@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.skt.tcore.common.{Common, RedisClient}
+import scala.collection.JavaConverters._
 
 object AlarmRuleRedisGenerator extends App {
   val count = if(args.length == 1) args(0).toInt else 1000
@@ -13,18 +14,30 @@ object AlarmRuleRedisGenerator extends App {
   mapper.registerModule(DefaultScalaModule)
   mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
-  val redis = RedisClient.getInstance().redis
-  redis.del(Common.metricRuleKey)
+  val redis = RedisClient.getInstance().client.connect().async()
+  val start = System.currentTimeMillis()
+
+  Common.watchTime("delete") {
+    val keys = redis.keys(Common.metricRuleKey + ":*").get.asScala.distinct
+    keys.foreach { k =>
+      redis.del(k).get()
+    }
+  }
+  //redis.del(Common.metricRuleKey + "*").get()
 
   val r = scala.util.Random
-  val start = System.currentTimeMillis()
-  (1 to count).foreach { i =>
-    val rule = MetricRule("server" + i, "cpu", r.nextInt(100), ">")
-    val key = rule.resource+":"+rule.metric
-    redis.hset(Common.metricRuleKey, key, mapper.writeValueAsString(rule))
+  Common.watchTime("hset") {
+    (1 to count).map { i =>
+      val rule = MetricRule("tcore-oi-data-2-" + i, "mem_used_percent", r.nextInt(100), ">")
+      redis.hset(rule.rkey(Common.metricRuleKey), rule.rfield, mapper.writeValueAsString(rule))
+    }.foreach(f => f.get())
   }
-  val pub = RedisClient.getInstance().client.connectPubSub().sync()
-  pub.publish(Common.metricRuleSyncChannel, "sync")
+
+  Common.watchTime("publish") {
+    val pub = RedisClient.getInstance().client.connectPubSub().sync()
+    pub.publish(Common.metricRuleSyncChannel, "sync")
+  }
+
   val end = System.currentTimeMillis()
   println(end - start + "ms")
 }

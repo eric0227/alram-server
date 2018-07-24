@@ -1,5 +1,8 @@
 package stresstest
 
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.skt.tcore.AlarmServer
 import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
 import com.skt.tcore.common.{Common, RedisClient}
@@ -23,14 +26,18 @@ object AlarmDetectionStressRedisUDFTest extends App {
   val streamDf = AlarmServer.selectMetricEventDF(eventStreamDF)
   streamDf.printSchema()
 
+  val mapper = new ObjectMapper() with ScalaObjectMapper
+  mapper.registerModule(DefaultScalaModule)
+  mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
   val userFilter = (resource: String, metric: String, value: Double) => {
     val redis = RedisClient.getInstance().redis
-    val opValue = redis.hget(Common.metricRuleKey, resource+":"+metric)
+    val key = Common.metricRuleKey + ":" + resource
+    val json = redis.hget(key, metric)
 
-    if(opValue == null) false
+    if (json == null) false
     else {
-      val Array(op, ruleValue) = opValue.split(":")
-      val rule = MetricRule(resource, metric, ruleValue.toDouble, op)
+      val rule = mapper.readValue[MetricRule](json, classOf[MetricRule])
       rule.eval(value)
     }
   }
