@@ -48,19 +48,21 @@ object AlarmDetectionStressBroadcastUDFTest extends App {
 
   val userFilter = (resource: String, metric: String, value: Double) => {
     val ruleList = alarmRuleBc.value
-    ruleList.exists(r => resource == r.resource && metric == r.metric && r.eval(value))
+    ruleList.find(r => resource == r.resource && metric == r.metric).map(_.eval(value))
   }
-  def dynamicFilter = udf(userFilter)
 
   streamDf
     //.filter(dynamicFilter($"resource", $"metric", $"value") === true)
     //.mapPartitions { iter => List(iter.length).iterator }
-    .map { row =>
+    .flatMap { row =>
       val resource = row.getAs[String]("resource")
       val metric = row.getAs[String]("metric")
       val value = row.getAs[Double]("value")
-      val chk = if (userFilter(resource, metric, value)) 1 else 0
-      (metric, chk, 1)
+      val opt = userFilter(resource, metric, value)
+      opt.map { bool =>
+        val chk = if (bool) 1 else 0
+        (metric, chk, 1)
+      }
     }
     .mapPartitions { iter =>
       iter.toList.groupBy(d => (d._1,d._2)).map(d => (d._1._1, d._1._2, d._2.size)).iterator

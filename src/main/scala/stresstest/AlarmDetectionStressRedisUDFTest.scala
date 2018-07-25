@@ -31,6 +31,14 @@ object AlarmDetectionStressRedisUDFTest extends App {
   mapper.registerModule(DefaultScalaModule)
   mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
+  val metricFilter = (resource: String, metric: String, value: Double) => {
+    val redis = RedisClient.getInstance().redis
+    val key = Common.metricRuleKey + ":" + resource
+    val json = redis.hget(key, metric)
+
+    if (json == null) false else true
+  }
+
   val userFilter = (resource: String, metric: String, value: Double) => {
     val redis = RedisClient.getInstance().redis
     val key = Common.metricRuleKey + ":" + resource
@@ -44,9 +52,9 @@ object AlarmDetectionStressRedisUDFTest extends App {
   }
 
   import spark.implicits._
-  def dynamicFilter = udf(userFilter)
+  def metricFilterUdf = udf(metricFilter)
   streamDf
-    //.filter(dynamicFilter($"resource", $"metric", $"value") === true)
+    .filter(metricFilterUdf($"resource", $"metric", $"value") === true)
     //.mapPartitions { iter => List(iter.length).iterator }
     .map { row =>
       val resource = row.getAs[String]("resource")
