@@ -91,7 +91,7 @@ object AlarmServer extends Logging {
       .withColumn("timestamp", when($"data.timestamp".isNotNull, $"data.timestamp").otherwise($"timestamp"))
       .withColumn("resource", $"data.tags.host")
       .select($"timestamp", $"resource", $"data.name", explode($"data.fields").as(Seq("metric","value")))
-      .withColumn("metric", concat($"name", lit("_"), $"metric" ))
+      .withColumn("metric", concat($"name", lit("."), $"metric" ))
 
     metric.createOrReplaceTempView("metric")
 

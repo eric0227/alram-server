@@ -16,7 +16,6 @@ libraryDependencies += "com.typesafe" % "config" % "1.3.3"
 libraryDependencies += "org.scala-lang.modules" %% "scala-async" % "0.9.7"
 libraryDependencies += "io.lettuce" % "lettuce-core" % "5.0.4.RELEASE"
 
-
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"
 libraryDependencies += "com.github.mrpowers" %% "spark-fast-tests" % "0.11.0" % "test" excludeAll ExclusionRule(organization = "org.apache.spark")
@@ -35,6 +34,7 @@ assemblyMergeStrategy in assembly := {
   case "META-INF/mailcap" => MergeStrategy.last
   case "META-INF/MANIFEST.MF" => MergeStrategy.last
   case "plugin.properties" => MergeStrategy.last
+  case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.last
   case x =>
     val oldStrategy = (assemblyMergeStrategy in assembly).value
     oldStrategy(x)

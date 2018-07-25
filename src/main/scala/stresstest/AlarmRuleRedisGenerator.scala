@@ -7,37 +7,38 @@ import com.skt.tcore.common.{Common, RedisClient}
 import scala.collection.JavaConverters._
 
 object AlarmRuleRedisGenerator extends App {
-  val count = if(args.length == 1) args(0).toInt else 1000
-  println("count :: " + count)
+  val serverCount = if(args.length > 0) args(0).toInt else 1000
+  val loopCount = if(args.length > 1) args(1).toInt else 10
+  val metric = if(args.length > 2) args(2) else "mem.used_percent"
+  println("server count :: " + serverCount)
+  println("loop count :: " + loopCount)
 
   val mapper = new ObjectMapper() with ScalaObjectMapper
   mapper.registerModule(DefaultScalaModule)
   mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
   val redis = RedisClient.getInstance().client.connect().async()
-  val start = System.currentTimeMillis()
-
-  Common.watchTime("delete") {
-    val keys = redis.keys(Common.metricRuleKey + ":*").get.asScala.distinct
-    keys.foreach { k =>
-      redis.del(k).get()
-    }
-  }
-  //redis.del(Common.metricRuleKey + "*").get()
-
+  val pub = RedisClient.getInstance().client.connectPubSub().sync()
   val r = scala.util.Random
-  Common.watchTime("hset") {
-    (1 to count).map { i =>
-      val rule = MetricRule("tcore-oi-data-2-" + i, "mem_used_percent", r.nextInt(100), ">")
+
+  val start = System.currentTimeMillis()
+  (1 to loopCount) foreach { loop =>
+    val start = System.currentTimeMillis()
+    val keys = redis.keys(Common.metricRuleKey + ":*").get.asScala.distinct
+    keys.map(k => redis.del(k)).foreach(f => f.get())
+
+    (1 to serverCount).map { i =>
+      val rule = MetricRule("tcore-oi-data-2-" + i, metric, r.nextInt(100), ">")
       redis.hset(rule.rkey(Common.metricRuleKey), rule.rfield, mapper.writeValueAsString(rule))
     }.foreach(f => f.get())
-  }
 
-  Common.watchTime("publish") {
-    val pub = RedisClient.getInstance().client.connectPubSub().sync()
     pub.publish(Common.metricRuleSyncChannel, "sync")
+
+    val end = System.currentTimeMillis()
+    println(s"loop : $loop, size : $serverCount,  ${end - start}ms")
   }
 
   val end = System.currentTimeMillis()
-  println(end - start + "ms")
+  println(s"\ntotal : ${end - start}ms")
+
 }

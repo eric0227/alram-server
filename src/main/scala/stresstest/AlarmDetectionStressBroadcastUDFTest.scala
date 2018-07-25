@@ -8,9 +8,10 @@ import com.skt.tcore.common.{Common, RedisClient}
 import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
 import io.lettuce.core.pubsub.RedisPubSubAdapter
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.streaming.Trigger
+import stresstest.AlarmDetectionStressRedisUDFTest.userFilter
 import stresstest.AlarmRuleRedisLoaderBroadcast.spark
 
 import scala.collection.JavaConversions._
@@ -49,11 +50,21 @@ object AlarmDetectionStressBroadcastUDFTest extends App {
     val ruleList = alarmRuleBc.value
     ruleList.exists(r => resource == r.resource && metric == r.metric && r.eval(value))
   }
-
   def dynamicFilter = udf(userFilter)
+
   streamDf
-    .filter(dynamicFilter($"resource", $"metric", $"value") === true)
-    .mapPartitions { iter => List(iter.length).iterator }
+    //.filter(dynamicFilter($"resource", $"metric", $"value") === true)
+    //.mapPartitions { iter => List(iter.length).iterator }
+    .map { row =>
+      val resource = row.getAs[String]("resource")
+      val metric = row.getAs[String]("metric")
+      val value = row.getAs[Double]("value")
+      val chk = if (userFilter(resource, metric, value)) 1 else 0
+      (metric, chk, 1)
+    }
+    .mapPartitions { iter =>
+      iter.toList.groupBy(d => (d._1,d._2)).map(d => (d._1._1, d._1._2, d._2.size)).iterator
+    }
     .writeStream
     .format("stresstest.CountSinkProvider")
     //.format("console")

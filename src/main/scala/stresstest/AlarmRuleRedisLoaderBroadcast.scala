@@ -21,14 +21,12 @@ object AlarmRuleRedisLoaderBroadcast extends App {
     val backup = alarmRuleBc
     alarmRuleBc = spark.sparkContext.broadcast(ruleList)
     if(backup != null) backup.destroy()
+    ruleList.groupBy(_.metric).foreach(d => println(d._1, d._2.size))
   }
 
   AlarmRuleRedisLoader { list =>
-    println(list.size)
-    Common.watchTime("create Broadcast") {
-      createBroadcast(list.toList)
-    }
-  }.loadRedisRule()
+    createBroadcast(list.toList)
+  }
 
   spark.streams.awaitAnyTermination()
 }

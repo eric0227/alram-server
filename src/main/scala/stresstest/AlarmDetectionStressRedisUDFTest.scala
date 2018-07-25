@@ -6,9 +6,10 @@ import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.skt.tcore.AlarmServer
 import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
 import com.skt.tcore.common.{Common, RedisClient}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.streaming.Trigger
+import stresstest.AlarmDetectionStressBroadcastUDFTest.userFilter
 
 object AlarmDetectionStressRedisUDFTest extends App {
 
@@ -42,10 +43,21 @@ object AlarmDetectionStressRedisUDFTest extends App {
     }
   }
 
+  import spark.implicits._
   def dynamicFilter = udf(userFilter)
   streamDf
-    .filter(dynamicFilter($"resource", $"metric", $"value") === true)
-    .mapPartitions { iter => List(iter.length).iterator }
+    //.filter(dynamicFilter($"resource", $"metric", $"value") === true)
+    //.mapPartitions { iter => List(iter.length).iterator }
+    .map { row =>
+      val resource = row.getAs[String]("resource")
+      val metric = row.getAs[String]("metric")
+      val value = row.getAs[Double]("value")
+      val chk = if (userFilter(resource, metric, value)) 1 else 0
+      (metric, chk, 1)
+    }
+    .mapPartitions { iter =>
+      iter.toList.groupBy(d => (d._1,d._2)).map(d => (d._1._1, d._1._2, d._2.size)).iterator
+    }
     .writeStream
     .format("stresstest.CountSinkProvider")
     //.format("console")

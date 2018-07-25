@@ -17,18 +17,15 @@ object AlarmRuleRedisLoaderRDD extends App {
   var ruleDf: DataFrame = _
   def createRuleDF(ruleList: List[MetricRule]) = synchronized {
     val df: DataFrame = spark.sqlContext.createDataFrame(ruleList)
-    df.repartition(df("resource")).cache().createOrReplaceTempView("metric_rule")
+    df.repartition(20, df("resource")).cache().createOrReplaceTempView("metric_rule")
     if (ruleDf != null) ruleDf.unpersist()
     ruleDf = df
-    spark.sql("select * from metric_rule").show(truncate = false)
+    spark.sql("select metric, count(*) from metric_rule group by metric").show(truncate = false)
   }
 
   AlarmRuleRedisLoader { list =>
-    println(list.size)
-    Common.watchTime("create Rule RDD") {
-      createRuleDF(list.toList)
-    }
-  }.loadRedisRule()
+    createRuleDF(list.toList)
+  }
 
   spark.streams.awaitAnyTermination()
 }
