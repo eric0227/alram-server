@@ -24,7 +24,6 @@ class RedisClient {
     val Array(ip, port) = token.split(":")
     RedisURI.create(ip, port.toInt)
   }.toSet.asJava
-  println(redisServerList)
 
   val client = RedisClusterClient.create(redisServerList)
   val redis = RedisClusterClient.create(redisServerList).connect().sync()

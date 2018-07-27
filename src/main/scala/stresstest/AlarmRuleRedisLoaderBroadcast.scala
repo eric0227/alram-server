@@ -4,17 +4,18 @@ import com.skt.tcore.common.Common
 import com.skt.tcore.common.Common.maxOffsetsPerTrigger
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import stresstest.AlarmDetectionStressBroadcastUDFTest.spark
 
 object AlarmRuleRedisLoaderBroadcast extends App {
 
   val master = if (args.length == 1) Some(args(0)) else None
-  val builder = SparkSession.builder().appName("spark test")
+  val builder = SparkSession.builder().appName("AlarmRuleRedisLoaderBroadcast")
   master.foreach(mst => builder.master(mst))
   implicit val spark = builder.getOrCreate()
 
-  val options = scala.collection.mutable.HashMap[String, String]()
-  maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))
+  val initSeq = (1 to 1000).map(n => (n,n))
+  val rdd = spark.sparkContext.parallelize(initSeq, 20)
+  rdd.reduceByKey(_ + _).count()
+  println("start application..")
 
   var alarmRuleBc: Broadcast[List[MetricRule]] = _
   def createBroadcast(ruleList: List[MetricRule]) = {
