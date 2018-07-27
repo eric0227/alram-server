@@ -100,6 +100,26 @@ object AlarmServer extends Logging {
     metric
   }
 
+  def startDynamicRule(df: DataFrame): StreamingQuery = {
+    import df.sparkSession.implicits._
+
+    val rule = df.select($"timestamp", from_json($"value", schema = Schema.metricRuleSchema).as("data"))
+      .filter($"data.id".isNotNull)
+      .select("data.id", "data.resource", "data.metric", "data.value", "data.op")
+      .groupBy("id").agg (
+        last("resource").as("resource")
+       ,last("metric").as("metric")
+       ,last("value").as("value")
+       ,last("op").as("op"))
+    rule.printSchema()
+
+    rule.writeStream
+      .format("memory")
+      .queryName("dynamic_rule")
+      .outputMode(OutputMode.Complete())
+      .start()
+  }
+
   def selectAlarmDF(df: DataFrame): DataFrame = {
     import df.sparkSession.implicits._
 

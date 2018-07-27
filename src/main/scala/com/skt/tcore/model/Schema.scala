@@ -12,6 +12,13 @@ object Schema {
 //      .add("timestamp", TimestampType, true)
 //      //.add("metric", MapType(StringType, DoubleType, true))
 
+  val metricRuleSchema = new StructType()
+    .add("id", StringType, true)
+    .add("resource", StringType, true)
+    .add("metric", StringType, true)
+    .add("value", DoubleType, true)
+    .add("op", StringType, true)
+
   val metricSchema = new StructType()
     .add("name", StringType, true)
     .add("tags", MapType(StringType, StringType, true))
