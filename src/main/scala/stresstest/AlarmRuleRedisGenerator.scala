@@ -14,7 +14,7 @@ object AlarmRuleRedisGenerator extends App {
   val loopCount = if(args.length > 1) args(1).toInt else 1
   val metrics = if(args.length > 2) args(2) else "mem.used_percent"
   println("server count :: " + serverCount)
-  println("loop count :: " + loopCount)
+  //println("loop count :: " + loopCount)
 
   val mapper = new ObjectMapper() with ScalaObjectMapper
   mapper.registerModule(DefaultScalaModule)
@@ -30,6 +30,7 @@ object AlarmRuleRedisGenerator extends App {
     metricList.foreach { metric =>
       count = count + 1
       val start = System.currentTimeMillis()
+      System.err.println(s"#start => server count : $serverCount, metric : ${metric}, timestamp: ${start}")
 
       val keys = redis.keys(Common.metricRuleKey + ":*").get.asScala.distinct
       keys.map(k => redis.del(k)).foreach(f => f.get())
@@ -44,9 +45,11 @@ object AlarmRuleRedisGenerator extends App {
       println(s"pub.sync metric:$metric")
 
       val end = System.currentTimeMillis()
-      println(s"loop : $count, server count : $serverCount, metric : ${metric}, time: ${end - start}ms")
+      println(s"server count : $serverCount, metric : ${metric}, time: ${end - start}ms, timestamp: ${end}")
+      System.err.println(s"#end => server count : $serverCount, metric : ${metric}, time: ${end - start}ms, timestamp: ${end}")
+      System.err.println()
 
-      Thread.sleep(5 * 1000)
+      if(loopCount > 1) Thread.sleep(60 * 1000)
     }
   }
 }

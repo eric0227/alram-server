@@ -5,7 +5,9 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.skt.tcore.common.{Common, RedisClient}
 import io.lettuce.core.pubsub.RedisPubSubAdapter
+import org.apache.spark.sql.SparkSession
 import stresstest.AlarmRuleRedisGenerator.pub
+import stresstest.AlarmRuleRedisLoaderRDD.args
 
 import scala.collection.JavaConverters._
 
@@ -13,6 +15,15 @@ object AlarmRuleRedisLoader {
   def apply[T](f:(Seq[MetricRule]) => T) = new AlarmRuleRedisLoader[T](f)
 
   def main(args: Array[String]): Unit = {
+
+    val master = if (args.length == 1) Some(args(0)) else None
+    val builder = SparkSession.builder().appName("AlarmRuleRedisLoader")
+    master.foreach(mst => builder.master(mst))
+    implicit val spark = builder.getOrCreate()
+    println("start application..")
+
+    import spark.implicits._
+    import org.apache.spark.sql._
     AlarmRuleRedisLoader { list =>
     }
     Thread.sleep(100000 * 1000)
@@ -38,12 +49,16 @@ class AlarmRuleRedisLoader[T](f:(Seq[MetricRule]) => T) {
         println("redis sub message => " + message)
 
         val start = System.currentTimeMillis()
+        System.err.println(s"#start => sync rule(redis): $count, timestamp: ${start}")
+
         val list = loadRedisRule()
         val end = System.currentTimeMillis()
         pubCmd.publish(Common.metricRuleSyncChannel, "ack:" + uuid)
         count = count + 1
         total = total + (end - start)
-        println(s"sync rule(redis)  : $count, size : ${list.size}, time : ${end - start}ms, total : ${total}ms")
+        println(s"sync rule(redis): $count, size: ${list.size}, time: ${end - start}ms, total: ${total}ms, timestamp: ${end}")
+        System.err.println(s"#end => sync rule(redis): $count, size: ${list.size}, time: ${end - start}ms, total: ${total}ms, timestamp: ${end}")
+        System.err.println()
         println()
       }
     }

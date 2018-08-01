@@ -46,7 +46,7 @@ object Common {
   lazy val logTopic: String = Common.config.getString("kafka.topics.log")
   lazy val eventTopic: String = Common.config.getString("kafka.topics.event")
   lazy val alarmTopic: String = Common.config.getString("kafka.topics.alarm")
-  lazy val maxOffsetsPerTrigger: Option[Long] = Common.config.opt[Long]("maxOffsetsPerTrigger")
+  lazy val maxOffsetsPerTrigger: Option[Long] = Common.config.opt[Long]("kafka.maxOffsetsPerTrigger")
   // redis
   lazy val redisServers: String = Common.config.getString("redis.servers")
   lazy val metricRuleKey: String = Common.config.getString("redis.metricRuleKey")

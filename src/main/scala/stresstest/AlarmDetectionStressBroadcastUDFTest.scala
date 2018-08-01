@@ -10,7 +10,9 @@ import io.lettuce.core.pubsub.RedisPubSubAdapter
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.functions.udf
-import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.streaming.{StreamingQuery, Trigger}
+import stresstest.AlarmDetectionStressRddJoinTest.spark
+
 import scala.collection.JavaConversions._
 
 object AlarmDetectionStressBroadcastUDFTest {
@@ -36,19 +38,8 @@ object AlarmDetectionStressBroadcastUDFTest {
     rdd.reduceByKey(_ + _).count()
     println("start application..")
 
+    var query: StreamingQuery = null
     var alarmRuleBc: Broadcast[Map[String,MetricRule]] = null
-    def createBroadcast(ruleList: List[MetricRule]) = {
-      val map = ruleList.map(r => (r.resource + "." + r.metric, r)).toMap
-      val backup = alarmRuleBc
-      alarmRuleBc = spark.sparkContext.broadcast(map)
-      if(backup != null) backup.destroy()
-      println("create broadcast ..ok")
-    }
-
-    val ruleList = AlarmRuleRedisLoader { list =>
-      createBroadcast(list.toList)
-    }.loadRedisRule()
-    //alarmRuleBc = createBroadcast(ruleList)
 
     val userFilter = (resource: String, metric: String, value: Double) => {
       val ruleMap = alarmRuleBc.value
@@ -56,34 +47,55 @@ object AlarmDetectionStressBroadcastUDFTest {
       //ruleList.find(r => resource == r.resource && metric == r.metric).map(_.eval(value))
     }
 
-    streamDf
-      //.filter(dynamicFilter($"resource", $"metric", $"value") === true)
-      //.mapPartitions { iter => List(iter.length).iterator }
-      .flatMap { row =>
-      val resource = row.getAs[String]("resource")
-      val metric = row.getAs[String]("metric")
-      val value = row.getAs[Double]("value")
-      //val opt = userFilter(resource, metric, value)
-      val opt = {
-        val ruleMap = alarmRuleBc.value
-        ruleMap.get(resource + "." + metric).map(r => resource == r.resource && metric == r.metric && r.eval(value))
+    def start(bc: Broadcast[Map[String,MetricRule]]) : StreamingQuery = {
+      streamDf
+        //.filter(dynamicFilter($"resource", $"metric", $"value") === true)
+        //.mapPartitions { iter => List(iter.length).iterator }
+        .flatMap { row =>
+        val resource = row.getAs[String]("resource")
+        val metric = row.getAs[String]("metric")
+        val value = row.getAs[Double]("value")
+        //val opt = userFilter(resource, metric, value)
+        val opt = {
+          val ruleMap = bc.value
+          ruleMap.get(resource + "." + metric).map(r => resource == r.resource && metric == r.metric && r.eval(value))
+        }
+        opt.map { bool =>
+          val chk = if (bool) 1 else 0
+          (metric, chk, 1)
+        }
       }
-      opt.map { bool =>
-        val chk = if (bool) 1 else 0
-        (metric, chk, 1)
-      }
+        .mapPartitions { iter =>
+          iter.toList.groupBy(d => (d._1, d._2)).map(d => (d._1._1, d._1._2, d._2.size)).iterator
+        }
+        .writeStream
+        .format("stresstest.CountSinkProvider")
+        //.format("console")
+        //.option("header", "true").option("truncate", false).option("numRows", Int.MaxValue)
+        .trigger(Trigger.ProcessingTime(0))
+        .option("checkpointLocation", checkpointPath + "/udf")
+        .start()
     }
-      .mapPartitions { iter =>
-        iter.toList.groupBy(d => (d._1, d._2)).map(d => (d._1._1, d._1._2, d._2.size)).iterator
-      }
-      .writeStream
-      .format("stresstest.CountSinkProvider")
-      //.format("console")
-      //.option("header", "true").option("truncate", false).option("numRows", Int.MaxValue)
-      .trigger(Trigger.ProcessingTime(0))
-      .option("checkpointLocation", checkpointPath + "/udf")
-      .start()
 
-    spark.streams.awaitAnyTermination()
+    def createBroadcast(ruleList: List[MetricRule]) = {
+      val map = ruleList.map(r => (r.resource + "." + r.metric, r)).toMap
+
+      val backup = alarmRuleBc
+      println("create broadcast ..")
+      alarmRuleBc = spark.sparkContext.broadcast(map)
+      if(query != null)  query.stop()
+      if(backup != null) backup.destroy()
+      query = start(alarmRuleBc)
+      println("create broadcast ..ok")
+    }
+
+    val ruleList = AlarmRuleRedisLoader { list =>
+      createBroadcast(list.toList)
+    }.loadRedisRule()
+
+    while(true) {
+      spark.streams.awaitAnyTermination()
+      Thread.sleep(1000)
+    }
   }
 }

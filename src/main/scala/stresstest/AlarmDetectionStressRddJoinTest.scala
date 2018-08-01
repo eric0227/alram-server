@@ -31,17 +31,21 @@ object AlarmDetectionStressRddJoinTest extends App {
   println("start application..")
 
   var ruleDf: DataFrame = _
-  def createRuleDF(ruleList: List[MetricRule]) = synchronized {
-    if(ruleDf != null) ruleDf.unpersist(true)
+  var query: StreamingQuery = _
+  def createRuleDF(ruleList: List[MetricRule]) = {
+    //if(ruleDf != null) ruleDf.unpersist(true)
 //    val df: DataFrame = spark.sqlContext.createDataFrame(ruleList)
 //    df.repartition(20, df("resource"), df("metric")).cache().createOrReplaceTempView("metric_rule")
 //    ruleDf = df
-    ruleDf = broadcast(spark.sqlContext.createDataFrame(ruleList)).toDF().cache()
+    val _df = ruleDf
+    ruleDf = broadcast(spark.sqlContext.createDataFrame(ruleList)).toDF()
     ruleDf.createOrReplaceTempView("metric_rule")
     //ruleDf.show()
     //spark.sql("select metric, count(*) from metric_rule group by metric").show(truncate = false)
     //spark.sql("select count(*) from metric_rule").show(truncate = false)
-    startQuery()
+    if(query != null) query.stop()
+    if(_df != null) _df.unpersist()
+    query = startQuery()
     println("create dataframe ..ok")
   }
 
@@ -49,9 +53,7 @@ object AlarmDetectionStressRddJoinTest extends App {
     createRuleDF(list.toList)
   }.loadRedisRule()
 
-  var query: StreamingQuery = _
-  def startQuery() = synchronized {
-    if(query != null) query.stop()
+  def startQuery(): StreamingQuery = synchronized {
 
     val join = spark.sql(
       """
@@ -73,7 +75,7 @@ object AlarmDetectionStressRddJoinTest extends App {
           (r.getAs[String]("metric"), r.getAs[Int]("chk"), 1)
         }.groupBy(d => (d._1,d._2)).map(d => (d._1._1, d._1._2, d._2.size)).iterator
       }
-    query = join.writeStream
+    join.writeStream
       .format("stresstest.CountSinkProvider")
       .trigger(Trigger.ProcessingTime(0))
       .option("checkpointLocation", checkpointPath + "/rdd")
