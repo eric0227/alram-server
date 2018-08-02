@@ -13,5 +13,4 @@ dist/
 .cache
 var/
 spark-warehouse
-_checkpoint
-_checkout
+/_*

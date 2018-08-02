@@ -9,6 +9,11 @@ import com.skt.tcore.common.{Common, RedisClient}
 
 import scala.collection.JavaConverters._
 
+/**
+  *   ./kafka-console-producer.sh --broker-list localhost:9092 --topic test-metric
+  *   {"fields":{"used":13130256384,"used_percent":6.482492161616354,"wired":0},"name":"mem","tags":{"host":"tcore-oi-data-2-1"},"timestamp":1529978760}
+  *
+  */
 object AlarmRuleRedisGenerator extends App {
   val serverCount = if(args.length > 0) args(0).toInt else 100
   val loopCount = if(args.length > 1) args(1).toInt else 1

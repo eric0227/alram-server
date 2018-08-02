@@ -34,7 +34,8 @@ object ResetCheckpointTest extends App {
     .trigger(Trigger.ProcessingTime(0))
     .start()
 
-  spark.streams.addListener(new OffsetWriteQueryListener(queryName = "checkpoint_test", topic = metricTopic, "_topics/"+metricTopic+"/offset.out"))
+  spark.streams.addListener(
+    new OffsetWriteQueryListener(queryName = "checkpoint_test", topic = metricTopic, "_topics/"+metricTopic+"/offset.out"))
 
   spark.streams.awaitAnyTermination()
 }
