@@ -40,7 +40,8 @@ object Common {
   }
 
   // app
-  lazy val ruleFilePath: String = Common.config.getString("app.ruleFilePath")
+  lazy val offsetPath: String = Common.config.getString("app.offsetPath")
+
   // kafka
   lazy val metricTopic: String = Common.config.getString("kafka.topics.metric")
   lazy val logTopic: String = Common.config.getString("kafka.topics.log")

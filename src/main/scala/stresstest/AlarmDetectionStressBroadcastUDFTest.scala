@@ -6,7 +6,6 @@ import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 import com.skt.tcore.AlarmServer
 import com.skt.tcore.common.{Common, RedisClient}
 import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
-import io.lettuce.core.pubsub.RedisPubSubAdapter
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.functions.udf

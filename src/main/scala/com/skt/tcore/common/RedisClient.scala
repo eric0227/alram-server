@@ -1,8 +1,8 @@
 package com.skt.tcore.common
 
+import com.lambdaworks.redis.RedisURI
+import com.lambdaworks.redis.cluster.RedisClusterClient
 import com.skt.tcore.common.Common.redisServers
-import io.lettuce.core.RedisURI
-import io.lettuce.core.cluster.RedisClusterClient
 
 object RedisClient {
 

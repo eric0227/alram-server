@@ -3,8 +3,8 @@ package stresstest
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
+import com.lambdaworks.redis.pubsub.RedisPubSubAdapter
 import com.skt.tcore.common.{Common, RedisClient}
-import io.lettuce.core.pubsub.RedisPubSubAdapter
 import org.apache.spark.sql.SparkSession
 import stresstest.AlarmRuleRedisGenerator.pub
 import stresstest.AlarmRuleRedisLoaderRDD.args

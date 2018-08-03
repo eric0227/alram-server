@@ -6,15 +6,17 @@ scalaVersion := "2.11.8"
 
 val sparkVersion = "2.3.1"
 
-libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion % "provided"
-libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
-libraryDependencies += "org.apache.spark" %% "spark-streaming" % sparkVersion % "provided"
+libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion //% "provided"
+libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion //% "provided"
+libraryDependencies += "org.apache.spark" %% "spark-streaming" % sparkVersion //% "provided"
 libraryDependencies += "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion excludeAll ExclusionRule(organization = "net.jpountz.lz4", name = "lz4")
 libraryDependencies += "org.apache.spark" %% "spark-streaming-kafka-0-10" % sparkVersion
 
 libraryDependencies += "com.typesafe" % "config" % "1.3.3"
 libraryDependencies += "org.scala-lang.modules" %% "scala-async" % "0.9.7"
-libraryDependencies += "io.lettuce" % "lettuce-core" % "5.0.4.RELEASE"
+//libraryDependencies += "io.lettuce" % "lettuce-core" % "5.0.4.RELEASE"
+libraryDependencies += "biz.paluch.redis" % "lettuce" % "5.0.0.Beta1" excludeAll ExclusionRule(organization = "io.netty")
+libraryDependencies += "com.adendamedia" %% "salad" % "0.9.2"
 
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"

@@ -7,10 +7,14 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.streaming.Sink
 
+object CountSink {
+  @volatile var totalCount: Long = 0
+}
+
 class CountSink(options: Map[String, String]) extends Sink with Logging {
 
   @volatile var totalMs: Long = 0
-  @volatile var totalCount: Long = 0
+  //@volatile var totalCount: Long = 0
   @volatile var start: Date = _
 
   println("create sink.")
@@ -43,12 +47,12 @@ class CountSink(options: Map[String, String]) extends Sink with Logging {
         (s._1, check0, check1)
       }.foreach { t =>
         val count = t._2 + t._3
-        totalCount = totalCount + count
-        println(s"metric: ${t._1}, alarm_detect: ${t._3}, batch_count: ${t._2 + t._3}, total_count: ${totalCount}")
-        System.err.println(s"metric: ${t._1}, alarm_detect: ${t._3}, batch_count: ${t._2 + t._3}, total_count: ${totalCount}")
+        CountSink.totalCount = CountSink.totalCount + count
+        println(s"metric: ${t._1}, alarm_detect: ${t._3}, batch_count: ${t._2 + t._3}, total_count: ${CountSink.totalCount}")
+        System.err.println(s"metric: ${t._1}, alarm_detect: ${t._3}, batch_count: ${t._2 + t._3}, total_count: ${CountSink.totalCount}")
       }
-      println(s"date: ${timestampFormat.format(end)}, batch_time: ${end.getTime - local.getTime}ms, total_time: ${end.getTime - start.getTime}ms,  total_count: ${totalCount}, timestamp: ${end.getTime}")
-      System.err.println(s"#end => date: ${timestampFormat.format(end)}, batch_time: ${end.getTime - local.getTime}ms, total_time: ${end.getTime - start.getTime}ms, total_count: ${totalCount}, timestamp: ${end.getTime}")
+      println(s"date: ${timestampFormat.format(end)}, batch_time: ${end.getTime - local.getTime}ms, total_time: ${end.getTime - start.getTime}ms,  total_count: ${CountSink.totalCount}, timestamp: ${end.getTime}")
+      System.err.println(s"#end => date: ${timestampFormat.format(end)}, batch_time: ${end.getTime - local.getTime}ms, total_time: ${end.getTime - start.getTime}ms, total_count: ${CountSink.totalCount}, timestamp: ${end.getTime}")
     }
   }
 }

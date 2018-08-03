@@ -3,10 +3,17 @@ package test.redis
 
 import java.util.concurrent.TimeUnit
 
+import com.adendamedia.salad.SaladAPI
+import com.adendamedia.salad.dressing.SaladStringKeyAPI
+import com.adendamedia.salad.serde.SnappySerdes
+import com.lambdaworks.redis.cluster.RedisClusterClient
+import com.lambdaworks.redis.codec.ByteArrayCodec
+import com.lambdaworks.redis.{RedisClient, RedisURI}
+import com.lambdaworks.redis.pubsub.RedisPubSubAdapter
 import org.scalatest.FunSuite
-import io.lettuce.core
-import io.lettuce.core.RedisClient
-import io.lettuce.core.pubsub.{RedisPubSubAdapter, RedisPubSubListener}
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
   * Created by mac on 2018. 7. 22..
@@ -54,14 +61,10 @@ class RedisClientTest extends FunSuite {
 
 
   test("lettuce cluster") {
-
-    import io.lettuce.core.RedisURI
-
     val node1 = RedisURI.create("192.168.203.101", 7001)
     val node2 = RedisURI.create("192.168.203.101", 7002)
     val node3 = RedisURI.create("192.168.203.101", 7003)
 
-    import io.lettuce.core.cluster.RedisClusterClient
     import java.util
     val client = RedisClusterClient.create(util.Arrays.asList(node1, node2, node3))
 
