@@ -40,7 +40,7 @@ object Common {
   }
 
   // app
-  lazy val offsetPath: String = Common.config.getString("app.offsetPath")
+  lazy val backupCheckpointPath: String = Common.config.getString("app.backupCheckpointPath")
 
   // kafka
   lazy val metricTopic: String = Common.config.getString("kafka.topics.metric")

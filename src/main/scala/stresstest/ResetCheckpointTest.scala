@@ -15,16 +15,33 @@ import org.apache.spark.sql.streaming.Trigger
   */
 object ResetCheckpointTest extends App {
 
+  val checkpoint = "checkpoint_test"
+  val options = scala.collection.mutable.HashMap[String, String]()
+
   val master = if (args.length >= 1) Some(args(0)) else None
+  val offsetOpt = if (args.length >= 2) Some(args(1)) else None
+
+  val startingOffsets =  offsetOpt.map(_offset => {
+    val startingOffsets = if(_offset.forall(Character.isDigit)) {
+      val opt = KafkaOffsetManager.getOffset(checkpoint, _offset.toLong)
+      if(opt.isEmpty) {
+        new IllegalArgumentException("can't reset offset :" + args(1))
+      }
+      opt.get
+    } else _offset
+    KafkaOffsetManager.cleanOffset(checkpoint)
+    startingOffsets
+  }).getOrElse("latest")
+
+  options += ("startingOffsets" -> startingOffsets)
+  maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))
+  println(options)
+
   val builder = SparkSession.builder().appName("ResetCheckpointTest")
   master.foreach(mst => builder.master(mst))
   implicit val spark = builder.getOrCreate()
+
   println("start application..")
-
-  val options = scala.collection.mutable.HashMap[String, String]()
-  maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))
-
-  println(options)
 
   def readKafkaDF(bootstrap: String, subscribe: String, options: Map[String, String]=Map())(implicit spark: SparkSession): DataFrame = {
     import spark.implicits._
@@ -33,7 +50,8 @@ object ResetCheckpointTest extends App {
       .format("kafka")
       .option("kafka.bootstrap.servers", bootstrap)
       .option("subscribe", subscribe)
-      .option("startingOffsets", "latest")
+      //.option("startingOffsets", "latest")
+      //.option("startingOffsets", """{"test-metric":{"0":13004519}}""")
       .options(options)
     reader
       .load()
@@ -50,12 +68,13 @@ object ResetCheckpointTest extends App {
   val query = streamDf
     .writeStream.format("console")
     .queryName("checkpoint_test")
-    .option("checkpointLocation", checkpointPath + "/checkpoint_test")
+    .option("checkpointLocation", checkpointPath + "/" + checkpoint)
+    .option("numRows", Int.MaxValue)
     .trigger(Trigger.ProcessingTime(0))
     .start()
 
-//  spark.streams.addListener(
-//    new OffsetWriteQueryListener(queryName = "checkpoint_test"))
+  spark.streams.addListener(
+    new OffsetWriteQueryListener(queryName = "checkpoint_test"))
 
   spark.streams.awaitAnyTermination()
 }

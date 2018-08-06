@@ -6,7 +6,7 @@ import java.util.Date
 
 import com.skt.tcore.common.Common
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
-import stresstest.OffsetManager.{parseOffset, parseTimestamp}
+import stresstest.KafkaOffsetManager.{parseOffset, parseTimestamp}
 
 import scala.collection.JavaConversions._
 import scala.io.Source
