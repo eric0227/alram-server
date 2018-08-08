@@ -6,7 +6,7 @@ import org.apache.spark.sql.streaming.{SourceProgress, StreamingQueryListener, S
 
 class OffsetWriteQueryListener(queryName: String) extends StreamingQueryListener with Logging {
 
-  val outputPath = KafkaOffsetManager.getOffsetPath(queryName)
+  val outputPath = KafkaOffsetManager.getBackupOffsetPath(queryName)
   val dir = new File(outputPath).getParentFile
   if(!dir.exists()) dir.mkdirs()
   val out = new PrintWriter(new FileWriter(outputPath, true))
@@ -33,10 +33,9 @@ class OffsetWriteQueryListener(queryName: String) extends StreamingQueryListener
   }
 
   def writeOffset(progress: StreamingQueryProgress): Unit = {
-    println(progress.durationMs)
     val date = KafkaOffsetManager.timestampFormat.parse(progress.timestamp)
-    val offsets = progress.sources.map(_.endOffset).mkString(",")
-    if(lastOffset != offsets) {
+    val offsets = progress.sources.map(_.startOffset).mkString(",")
+    if(offsets != null && offsets != "null" && lastOffset != offsets) {
       val result = KafkaOffsetManager.offsetString(date, offsets)
       out.println(result)
       out.flush()

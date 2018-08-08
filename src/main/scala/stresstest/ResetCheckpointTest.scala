@@ -1,10 +1,15 @@
 package stresstest
 
+import java.text.SimpleDateFormat
+
 import com.skt.tcore.AlarmServer
+import com.skt.tcore.common.Common
 import com.skt.tcore.common.Common.{checkpointPath, kafkaServers, maxOffsetsPerTrigger, metricTopic}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.execution.streaming.FileStreamSource.Timestamp
 import org.apache.spark.sql.streaming.Trigger
+
+import scala.util.Try
 
 /**
   * ./kafka-console-producer.sh --broker-list localhost:9092 --topic test-metric
@@ -15,25 +20,67 @@ import org.apache.spark.sql.streaming.Trigger
   */
 object ResetCheckpointTest extends App {
 
-  val checkpoint = "checkpoint_test"
+  val queryName = "checkpoint_test"
+
+  def printUsage(): Unit = {
+    println("usage: ResetCheckpointTest [earliest | latest | offsets | timestamp | date] ")
+
+    println("examples")
+    println("=====================")
+    println(""" offsets   : {"topic1":{"0":23,"1":25},"topic2":{"0":10}}""" )
+    println(""" timestamp : 1533528363990""" )
+    println(""" date      : 2018-08-10 10:05:21""" )
+    println()
+    println("backup offsets")
+    println("=====================")
+    KafkaOffsetManager
+      .getBackupOffset(queryName)
+      .foreach(println)
+  }
+
+  println("# test query name : " + queryName)
+  println("# backup offset path : " + KafkaOffsetManager.getBackupOffsetPath(queryName))
+  println("# spark checkpoint path  : " + KafkaOffsetManager.getCheckpointPath(queryName))
+  println()
+
+  if (args.length != 1) {
+    printUsage()
+    sys.exit()
+  }
+
   val options = scala.collection.mutable.HashMap[String, String]()
 
-  val master = if (args.length >= 1) Some(args(0)) else None
-  val offsetOpt = if (args.length >= 2) Some(args(1)) else None
+  val master = if(System.getProperty("MASTER") != null) Some(System.getProperty("MASTER")) else None
 
-  val startingOffsets =  offsetOpt.map(_offset => {
-    val startingOffsets = if(_offset.forall(Character.isDigit)) {
-      val opt = KafkaOffsetManager.getOffset(checkpoint, _offset.toLong)
-      if(opt.isEmpty) {
-        new IllegalArgumentException("can't reset offset :" + args(1))
-      }
-      opt.get
-    } else _offset
-    KafkaOffsetManager.cleanOffset(checkpoint)
-    startingOffsets
-  }).getOrElse("latest")
+  val startingOffsetsOpt = args(0) match {
+    case offset if offset == "earliest" || offset == "latest" => Some(offset)
+    case offset if isJson(offset) =>  Some(offset)
+    case offset if isTimestamp(offset) => KafkaOffsetManager.getOffset(queryName, offset.toLong)
+    case offset if isDate(offset) => {
+      val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+      val timestamp = dateFormat.parse(offset).getTime
+      KafkaOffsetManager.getOffset(queryName, timestamp.toLong)
+    }
+    case _ => None
+  }
 
-  options += ("startingOffsets" -> startingOffsets)
+  def isJson(str: String) = str.contains(":") && str.contains("{") && str.contains("}")
+  def isTimestamp(str: String) = Try(str.toLong).map(_ => true).getOrElse(false)
+  def isDate(str: String) = Try {
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    val timestamp = dateFormat.parse(str).getTime
+    timestamp
+  }.map(_ => true).getOrElse(false)
+
+  if(startingOffsetsOpt.isEmpty) {
+    printUsage()
+    sys.exit()
+  } else {
+    //KafkaOffsetManager.deleteBackupOffsetFiles(queryName)
+    KafkaOffsetManager.deleteOffsetFiles(queryName)
+    options += ("startingOffsets" -> startingOffsetsOpt.get)
+  }
+
   maxOffsetsPerTrigger.foreach(max => options += ("maxOffsetsPerTrigger" -> max.toString))
   println(options)
 
@@ -65,16 +112,16 @@ object ResetCheckpointTest extends App {
   val streamDf = AlarmServer.selectMetricEventDF(eventStreamDF)
   streamDf.printSchema()
 
+  spark.streams.addListener(
+    new OffsetWriteQueryListener(queryName = "checkpoint_test"))
+
   val query = streamDf
     .writeStream.format("console")
     .queryName("checkpoint_test")
-    .option("checkpointLocation", checkpointPath + "/" + checkpoint)
+    .option("checkpointLocation", checkpointPath + "/" + queryName)
     .option("numRows", Int.MaxValue)
     .trigger(Trigger.ProcessingTime(0))
     .start()
-
-  spark.streams.addListener(
-    new OffsetWriteQueryListener(queryName = "checkpoint_test"))
 
   spark.streams.awaitAnyTermination()
 }
