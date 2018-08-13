@@ -66,6 +66,10 @@ class AlarmRuleRedisLoader[T](f:(Seq[MetricRule]) => T) {
   subCmd.subscribe(Common.metricRuleSyncChannel)
 
   val redis = RedisClient.getInstance().client.connect().async()
+  val keys = redis.keys(Common.metricRuleKey+":*").get.asScala.toList.distinct
+  println("key size => " + keys.size)
+  keys.take(100).map (k => redis.hgetall(k)).flatMap { f => f.get().values().asScala}
+
   def loadRedisRule(): List[MetricRule] = {
     val start = System.currentTimeMillis()
     val list = redis.keys(Common.metricRuleKey+":*").get.asScala.toList.distinct.map { k =>

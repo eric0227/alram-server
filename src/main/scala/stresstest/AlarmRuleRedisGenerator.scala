@@ -54,7 +54,7 @@ object AlarmRuleRedisGenerator extends App {
       System.err.println(s"#end => server count : $serverCount, metric : ${metric}, time: ${end - start}ms, timestamp: ${end}")
       System.err.println()
 
-      if(loopCount > 1) Thread.sleep(60 * 1000)
+      if(loopCount > 1) Thread.sleep(10 * 1000)
     }
   }
 }
