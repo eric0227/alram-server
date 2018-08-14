@@ -6,9 +6,9 @@ scalaVersion := "2.11.8"
 
 val sparkVersion = "2.3.1"
 
-libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion % "provided"
-libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
-libraryDependencies += "org.apache.spark" %% "spark-streaming" % sparkVersion % "provided"
+libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion //% "provided"
+libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion //% "provided"
+libraryDependencies += "org.apache.spark" %% "spark-streaming" % sparkVersion //% "provided"
 libraryDependencies += "org.apache.spark" %% "spark-sql-kafka-0-10" % sparkVersion excludeAll ExclusionRule(organization = "net.jpountz.lz4", name = "lz4")
 libraryDependencies += "org.apache.spark" %% "spark-streaming-kafka-0-10" % sparkVersion
 
