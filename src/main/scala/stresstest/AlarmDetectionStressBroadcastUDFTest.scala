@@ -48,13 +48,10 @@ object AlarmDetectionStressBroadcastUDFTest {
 
     def start(bc: Broadcast[Map[String,MetricRule]]) : StreamingQuery = {
       streamDf
-        //.filter(dynamicFilter($"resource", $"metric", $"value") === true)
-        //.mapPartitions { iter => List(iter.length).iterator }
         .flatMap { row =>
         val resource = row.getAs[String]("resource")
         val metric = row.getAs[String]("metric")
         val value = row.getAs[Double]("value")
-        //val opt = userFilter(resource, metric, value)
         val opt = {
           val ruleMap = bc.value
           ruleMap.get(resource + "." + metric).map(r => resource == r.resource && metric == r.metric && r.eval(value))
@@ -69,8 +66,6 @@ object AlarmDetectionStressBroadcastUDFTest {
         }
         .writeStream
         .format("stresstest.CountSinkProvider")
-        //.format("console")
-        //.option("header", "true").option("truncate", false).option("numRows", Int.MaxValue)
         .trigger(Trigger.ProcessingTime(0))
         .option("checkpointLocation", checkpointPath + "/udf")
         .start()

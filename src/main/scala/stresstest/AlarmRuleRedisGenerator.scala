@@ -25,8 +25,8 @@ object AlarmRuleRedisGenerator extends App {
   mapper.registerModule(DefaultScalaModule)
   mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
-  val redis = RedisClient.getInstance().client.connect().async()
-  val pub = RedisClient.getInstance().client.connectPubSub().sync()
+  val redis = RedisClient.client.connect().async()
+  val pub = RedisClient.client.connectPubSub().sync()
   val r = scala.util.Random
 
   var count = 0

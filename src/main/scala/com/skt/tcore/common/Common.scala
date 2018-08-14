@@ -52,6 +52,9 @@ object Common {
   lazy val redisServers: String = Common.config.getString("redis.servers")
   lazy val metricRuleKey: String = Common.config.getString("redis.metricRuleKey")
   lazy val metricRuleSyncChannel: String = Common.config.getString("redis.metricRuleSyncChannel")
+  lazy val metricValueKey: String = Common.config.getString("redis.metricValueKey")
+  lazy val metricValueAggKey: String = Common.config.getString("redis.metricValueAggKey")
+  lazy val alarmStateKey: String = Common.config.getString("redis.alarmStateKey")
 
   def printConsole(df: DataFrame, numRows: Int = 0): Unit = {
     if (df.isStreaming) {

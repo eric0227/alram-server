@@ -16,6 +16,7 @@ class CountSink(options: Map[String, String]) extends Sink with Logging {
   @volatile var totalMs: Long = 0
   //@volatile var totalCount: Long = 0
   @volatile var start: Date = _
+  val timestampFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
 
   println("create sink.")
 
@@ -32,12 +33,11 @@ class CountSink(options: Map[String, String]) extends Sink with Logging {
 
       if(start == null) {
         start = new Date(local.getTime)
-        println(s"start sink, timestamp: ${start.getTime}ms")
-        System.err.println(s"#start => start, timestamp: ${start.getTime}ms")
+        println(s"start sink, date: ${timestampFormat.format(start)}, timestamp: ${start.getTime}")
+        System.err.println(s"#start => start, date: ${timestampFormat.format(start)}, timestamp: ${start.getTime}")
       }
 
       val end = new Date()
-      val timestampFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
 
       rows.map { row =>
         (row.getString(0), row.getInt(1), row.getInt(2))

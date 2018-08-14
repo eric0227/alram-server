@@ -34,7 +34,7 @@ object AlarmDetectionStressRedisUDFTest {
     println("start application..")
 
     val metricFilter = (resource: String, metric: String, value: Double) => {
-      val redis = RedisClient.getInstance().redis
+      val redis = RedisClient.syncApi
       val key = Common.metricRuleKey + ":" + resource
       val json = redis.hget(key, metric)
 
@@ -42,16 +42,12 @@ object AlarmDetectionStressRedisUDFTest {
     }
 
     def userFilter (resource: String, metric: String, value: Double) = {
-      val redis = RedisClient.getInstance().redis
+      val redis = RedisClient.syncApi
       val key = Common.metricRuleKey + ":" + resource
       val json = redis.hget(key, metric)
 
       if (json == null) false
       else {
-//        val mapper = new ObjectMapper() with ScalaObjectMapper
-//        mapper.registerModule(DefaultScalaModule)
-//        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-//        val rule = mapper.readValue[MetricRule](json, classOf[MetricRule])
         val rule = MetricRule(json)
         rule.eval(value)
       }
@@ -73,8 +69,6 @@ object AlarmDetectionStressRedisUDFTest {
       .mapPartitions { iter =>
         iter.toList.groupBy(d => (d._1, d._2)).map(d => (d._1._1, d._1._2, d._2.size)).iterator
       }
-    //query.printSchema()
-    //query.writeStream.format("console").start()
 
     query.writeStream
       .format("stresstest.CountSinkProvider")

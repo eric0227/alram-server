@@ -33,16 +33,9 @@ object AlarmDetectionStressRddJoinTest extends App {
   var ruleDf: DataFrame = _
   var query: StreamingQuery = _
   def createRuleDF(ruleList: List[MetricRule]) = {
-    //if(ruleDf != null) ruleDf.unpersist(true)
-//    val df: DataFrame = spark.sqlContext.createDataFrame(ruleList)
-//    df.repartition(20, df("resource"), df("metric")).cache().createOrReplaceTempView("metric_rule")
-//    ruleDf = df
     val _df = ruleDf
     ruleDf = broadcast(spark.sqlContext.createDataFrame(ruleList)).toDF()
     ruleDf.createOrReplaceTempView("metric_rule")
-    //ruleDf.show()
-    //spark.sql("select metric, count(*) from metric_rule group by metric").show(truncate = false)
-    //spark.sql("select count(*) from metric_rule").show(truncate = false)
     if(query != null) query.stop()
     if(_df != null) _df.unpersist()
     query = startQuery()
